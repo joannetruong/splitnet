@@ -15,9 +15,23 @@ class ConvBlock(nn.Module):
     Helper module that consists of a Conv -> BN -> ReLU
     """
 
-    def __init__(self, in_channels, out_channels, padding=1, kernel_size=3, stride=1, with_nonlinearity=True):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        padding=1,
+        kernel_size=3,
+        stride=1,
+        with_nonlinearity=True,
+    ):
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, out_channels, padding=padding, kernel_size=kernel_size, stride=stride)
+        self.conv = nn.Conv2d(
+            in_channels,
+            out_channels,
+            padding=padding,
+            kernel_size=kernel_size,
+            stride=stride,
+        )
         self.bn = nn.GroupNorm(32, out_channels)
         self.nonlinearity = nn.ELU(inplace=True)
         self.with_nonlinearity = with_nonlinearity
@@ -37,14 +51,18 @@ class Bridge(nn.Module):
 
     def __init__(self, in_channels, out_channels):
         super().__init__()
-        self.bridge = nn.Sequential(ConvBlock(in_channels, out_channels), ConvBlock(out_channels, out_channels))
+        self.bridge = nn.Sequential(
+            ConvBlock(in_channels, out_channels), ConvBlock(out_channels, out_channels)
+        )
 
     def forward(self, x):
         return self.bridge(x)
 
 
 class Interpolate(nn.Module):
-    def __init__(self, size=None, scale_factor=None, mode="nearest", align_corners=None):
+    def __init__(
+        self, size=None, scale_factor=None, mode="nearest", align_corners=None
+    ):
         super(Interpolate, self).__init__()
         self.interp = nn.functional.interpolate
         self.size = size
@@ -54,7 +72,11 @@ class Interpolate(nn.Module):
 
     def forward(self, x):
         x = self.interp(
-            x, size=self.size, scale_factor=self.scale_factor, mode=self.mode, align_corners=self.align_corners
+            x,
+            size=self.size,
+            scale_factor=self.scale_factor,
+            mode=self.mode,
+            align_corners=self.align_corners,
         )
         return x
 
@@ -80,9 +102,13 @@ class UpBlockForHourglassNet(nn.Module):
             up_conv_out_channels = out_channels
 
         if upsampling_method == "conv_transpose":
-            self.upsample = nn.ConvTranspose2d(up_conv_in_channels, up_conv_out_channels, kernel_size=2, stride=2)
+            self.upsample = nn.ConvTranspose2d(
+                up_conv_in_channels, up_conv_out_channels, kernel_size=2, stride=2
+            )
         elif upsampling_method == "bilinear":
-            self.upsample = Interpolate(scale_factor=2, mode="bilinear", align_corners=False)
+            self.upsample = Interpolate(
+                scale_factor=2, mode="bilinear", align_corners=False
+            )
         self.conv_block_1 = ConvBlock(in_channels, out_channels)
         self.conv_block_2 = ConvBlock(out_channels, out_channels)
 
@@ -118,9 +144,13 @@ class ShallowUpBlockForHourglassNet(nn.Module):
             up_conv_out_channels = out_channels
 
         if upsampling_method == "conv_transpose":
-            self.upsample = nn.ConvTranspose2d(up_conv_in_channels, up_conv_out_channels, kernel_size=2, stride=2)
+            self.upsample = nn.ConvTranspose2d(
+                up_conv_in_channels, up_conv_out_channels, kernel_size=2, stride=2
+            )
         elif upsampling_method == "bilinear":
-            self.upsample = Interpolate(scale_factor=2, mode="bilinear", align_corners=False)
+            self.upsample = Interpolate(
+                scale_factor=2, mode="bilinear", align_corners=False
+            )
         self.conv_block = ConvBlock(in_channels, out_channels)
 
     def forward(self, up_x):

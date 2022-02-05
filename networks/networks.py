@@ -61,7 +61,9 @@ class BaseEncoderDecoder(EncoderDecoderInterface, ABC):
         super(BaseEncoderDecoder, self).__init__(decoder_output_info, create_decoder)
         self.class_pred_layer = None
         if "semantic" in {info[0] for info in self.decoder_output_info}:
-            num_classes = [info[1] for info in self.decoder_output_info if info[0] == "semantic"][0]
+            num_classes = [
+                info[1] for info in self.decoder_output_info if info[0] == "semantic"
+            ][0]
             self.class_pred_layer = nn.Sequential(
                 nn.Linear(128, 128), nn.ELU(inplace=True), nn.Linear(128, num_classes)
             )
@@ -110,12 +112,20 @@ class ShallowVisualEncoder(BaseEncoderDecoder):
 
     def construct_encoder(self):
         self.encoder = nn.Sequential(
-            ConvBlock(in_channels=3, out_channels=32, padding=3, kernel_size=7, stride=4),
-            ConvBlock(in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1),
+            ConvBlock(
+                in_channels=3, out_channels=32, padding=3, kernel_size=7, stride=4
+            ),
+            ConvBlock(
+                in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1
+            ),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            ConvBlock(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1),
+            ConvBlock(
+                in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1
+            ),
             nn.MaxPool2d(kernel_size=2, stride=2),
-            ConvBlock(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1),
+            ConvBlock(
+                in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1
+            ),
             nn.MaxPool2d(kernel_size=2, stride=2),
         )
 
@@ -130,7 +140,9 @@ class ImagenetModel(nn.Module):
     def __init__(self):
         super(ImagenetModel, self).__init__()
         self.visual_encoder = ShallowVisualEncoder({}, False)
-        self.class_pred_layer = nn.Sequential(nn.Linear(7 * 7 * 128, 1024), nn.ELU(inplace=True), nn.Linear(1024, 1000))
+        self.class_pred_layer = nn.Sequential(
+            nn.Linear(7 * 7 * 128, 1024), nn.ELU(inplace=True), nn.Linear(1024, 1000)
+        )
 
     def forward(self, x):
         x = self.visual_encoder(x, False)[0]
@@ -145,7 +157,9 @@ class ResNetEncoder(BaseEncoderDecoder):
 
     def construct_encoder(self):
         # Remove the avg-pool and fc layers from ResNet
-        self.encoder = nn.Sequential(*list(models.resnet18(pretrained=True).children())[:-2])
+        self.encoder = nn.Sequential(
+            *list(models.resnet18(pretrained=True).children())[:-2]
+        )
 
     @property
     def num_output_channels(self):
@@ -190,21 +204,26 @@ class RLBaseWithVisualEncoder(model.NNBase):
 
         super(RLBaseWithVisualEncoder, self).__init__(
             recurrent,
-            recurrent_input_size=hidden_size + self.target_vector_size + self.action_size,
+            recurrent_input_size=hidden_size
+            + self.target_vector_size
+            + self.action_size,
             hidden_size=hidden_size,
         )
 
         if self.aah_im_blind:
             self.blind_projection = nn.Sequential(
                 nn.Linear(
-                    self.target_vector_size + self.action_size, hidden_size + self.target_vector_size + self.action_size
+                    self.target_vector_size + self.action_size,
+                    hidden_size + self.target_vector_size + self.action_size,
                 )
             )
         else:
             self.visual_encoder = encoder_type(decoder_output_info, create_decoder)
             self.num_output_channels = self.visual_encoder.num_output_channels
 
-            self.visual_encoder = pt_util.get_data_parallel(self.visual_encoder, gpu_ids)
+            self.visual_encoder = pt_util.get_data_parallel(
+                self.visual_encoder, gpu_ids
+            )
 
             self.decoder_output_info = decoder_output_info
 
@@ -217,22 +236,31 @@ class RLBaseWithVisualEncoder(model.NNBase):
             )
 
         self.rl_layers = nn.Sequential(
-            nn.Linear(hidden_size + self.target_vector_size + self.action_size, hidden_size),
+            nn.Linear(
+                hidden_size + self.target_vector_size + self.action_size, hidden_size
+            ),
             nn.ELU(inplace=True),
             nn.Linear(hidden_size, hidden_size),
             nn.ELU(inplace=True),
         )
 
         self.egomotion_layer = nn.Sequential(
-            nn.Linear(2 * hidden_size, hidden_size), nn.ELU(inplace=True), nn.Linear(hidden_size, action_size)
+            nn.Linear(2 * hidden_size, hidden_size),
+            nn.ELU(inplace=True),
+            nn.Linear(hidden_size, action_size),
         )
 
         self.motion_model_layer = nn.Sequential(
-            nn.Linear(hidden_size + action_size, hidden_size), nn.ELU(inplace=True), nn.Linear(hidden_size, hidden_size)
+            nn.Linear(hidden_size + action_size, hidden_size),
+            nn.ELU(inplace=True),
+            nn.Linear(hidden_size, hidden_size),
         )
 
         self.critic_linear = init(
-            nn.Linear(hidden_size, 1), nn.init.orthogonal_, lambda x: nn.init.constant_(x, 0), np.sqrt(2)
+            nn.Linear(hidden_size, 1),
+            nn.init.orthogonal_,
+            lambda x: nn.init.constant_(x, 0),
+            np.sqrt(2),
         )
 
     @property
@@ -260,39 +288,53 @@ class RLBaseWithVisualEncoder(model.NNBase):
             if target_vector is None:
                 rl_features = self.blind_projection(prev_action_one_hot)
             else:
-                rl_features = self.blind_projection(torch.cat((target_vector, prev_action_one_hot), dim=1))
+                rl_features = self.blind_projection(
+                    torch.cat((target_vector, prev_action_one_hot), dim=1)
+                )
         else:
             if visual_encoder_features is not None:
                 self.visual_encoder_features = visual_encoder_features
             else:
                 # Pool and reshape the features
-                self.visual_encoder_features, self.decoder_outputs, self.class_pred = self.visual_encoder(
-                    images, self.decoder_enabled
-                )
+                (
+                    self.visual_encoder_features,
+                    self.decoder_outputs,
+                    self.class_pred,
+                ) = self.visual_encoder(images, self.decoder_enabled)
                 if not self.end_to_end:
                     self.visual_encoder_features = self.visual_encoder_features.detach()
 
             self.visual_features = self.visual_projection(self.visual_encoder_features)
 
             if target_vector is not None:
-                rl_features = torch.cat((self.visual_features, target_vector, prev_action_one_hot), dim=1)
+                rl_features = torch.cat(
+                    (self.visual_features, target_vector, prev_action_one_hot), dim=1
+                )
             else:
-                rl_features = torch.cat((self.visual_features, prev_action_one_hot), dim=1)
+                rl_features = torch.cat(
+                    (self.visual_features, prev_action_one_hot), dim=1
+                )
 
         # RL Part
         if self.is_recurrent:
             rl_features, rnn_hxs = self._forward_gru(rl_features, rnn_hxs, masks)
         if target_vector is not None:
-            x = self.rl_layers(torch.cat((rl_features, target_vector, prev_action_one_hot), dim=1))
+            x = self.rl_layers(
+                torch.cat((rl_features, target_vector, prev_action_one_hot), dim=1)
+            )
         else:
             x = self.rl_layers(torch.cat((rl_features, prev_action_one_hot), dim=1))
 
         return self.critic_linear(x), x, rnn_hxs
 
     def predict_egomotion(self, visual_features_curr, visual_features_prev):
-        feature_t_concat = torch.cat((visual_features_curr, visual_features_prev), dim=-1)
+        feature_t_concat = torch.cat(
+            (visual_features_curr, visual_features_prev), dim=-1
+        )
         if len(feature_t_concat.shape) > 2:
-            feature_t_concat = feature_t_concat.view(-1, self.egomotion_layer[0].weight.shape[1])
+            feature_t_concat = feature_t_concat.view(
+                -1, self.egomotion_layer[0].weight.shape[1]
+            )
         egomotion_pred = self.egomotion_layer(feature_t_concat)
         return egomotion_pred
 
@@ -304,7 +346,9 @@ class RLBaseWithVisualEncoder(model.NNBase):
             )
         if len(action.shape) > 2:
             action = action.view(-1, self.action_size)
-        next_features_delta = self.motion_model_layer(torch.cat((visual_features_curr, action), dim=1))
+        next_features_delta = self.motion_model_layer(
+            torch.cat((visual_features_curr, action), dim=1)
+        )
         next_features = visual_features_curr + next_features_delta
         next_features = next_features.view(feature_shape)
         return next_features

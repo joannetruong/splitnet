@@ -31,10 +31,23 @@ from networks.networks import ImagenetModel
 parser = argparse.ArgumentParser(description="PyTorch ImageNet Training")
 parser.add_argument("--data", metavar="DIR", help="path to dataset")
 parser.add_argument(
-    "-j", "--workers", default=4, type=int, metavar="N", help="number of data loading workers (default: 4)"
+    "-j",
+    "--workers",
+    default=4,
+    type=int,
+    metavar="N",
+    help="number of data loading workers (default: 4)",
 )
-parser.add_argument("--epochs", default=90, type=int, metavar="N", help="number of total epochs to run")
-parser.add_argument("--start-epoch", default=0, type=int, metavar="N", help="manual epoch number (useful on restarts)")
+parser.add_argument(
+    "--epochs", default=90, type=int, metavar="N", help="number of total epochs to run"
+)
+parser.add_argument(
+    "--start-epoch",
+    default=0,
+    type=int,
+    metavar="N",
+    help="manual epoch number (useful on restarts)",
+)
 parser.add_argument(
     "-b",
     "--batch-size",
@@ -46,7 +59,13 @@ parser.add_argument(
     "using Data Parallel or Distributed Data Parallel",
 )
 parser.add_argument(
-    "--lr", "--learning-rate", default=0.1, type=float, metavar="LR", help="initial learning rate", dest="lr"
+    "--lr",
+    "--learning-rate",
+    default=0.1,
+    type=float,
+    metavar="LR",
+    help="initial learning rate",
+    dest="lr",
 )
 parser.add_argument("--momentum", default=0.9, type=float, metavar="M", help="momentum")
 parser.add_argument(
@@ -58,17 +77,52 @@ parser.add_argument(
     help="weight decay (default: 1e-4)",
     dest="weight_decay",
 )
-parser.add_argument("-p", "--print-freq", default=10, type=int, metavar="N", help="print frequency (default: 10)")
-parser.add_argument("--resume", default="", type=str, metavar="PATH", help="path to latest checkpoint (default: none)")
-parser.add_argument("-e", "--evaluate", dest="evaluate", action="store_true", help="evaluate model on validation set")
-parser.add_argument("--pretrained", dest="pretrained", action="store_true", help="use pre-trained model")
-parser.add_argument("--world-size", default=-1, type=int, help="number of nodes for distributed training")
-parser.add_argument("--rank", default=-1, type=int, help="node rank for distributed training")
 parser.add_argument(
-    "--dist-url", default="tcp://224.66.41.62:23456", type=str, help="url used to set up distributed training"
+    "-p",
+    "--print-freq",
+    default=10,
+    type=int,
+    metavar="N",
+    help="print frequency (default: 10)",
 )
-parser.add_argument("--dist-backend", default="nccl", type=str, help="distributed backend")
-parser.add_argument("--seed", default=None, type=int, help="seed for initializing training. ")
+parser.add_argument(
+    "--resume",
+    default="",
+    type=str,
+    metavar="PATH",
+    help="path to latest checkpoint (default: none)",
+)
+parser.add_argument(
+    "-e",
+    "--evaluate",
+    dest="evaluate",
+    action="store_true",
+    help="evaluate model on validation set",
+)
+parser.add_argument(
+    "--pretrained", dest="pretrained", action="store_true", help="use pre-trained model"
+)
+parser.add_argument(
+    "--world-size",
+    default=-1,
+    type=int,
+    help="number of nodes for distributed training",
+)
+parser.add_argument(
+    "--rank", default=-1, type=int, help="node rank for distributed training"
+)
+parser.add_argument(
+    "--dist-url",
+    default="tcp://224.66.41.62:23456",
+    type=str,
+    help="url used to set up distributed training",
+)
+parser.add_argument(
+    "--dist-backend", default="nccl", type=str, help="distributed backend"
+)
+parser.add_argument(
+    "--seed", default=None, type=int, help="seed for initializing training. "
+)
 parser.add_argument(
     "--multiprocessing-distributed",
     action="store_true",
@@ -77,19 +131,49 @@ parser.add_argument(
     "fastest way to use PyTorch for either single node or "
     "multi node data parallel training",
 )
-parser.add_argument("--pytorch-gpu-ids", type=str, required=True, help="ID(s) of the gpu(s) to use for pytorch")
 parser.add_argument(
-    "--clear-weights", action="store_true", default=False, help="do not load previous model weights if they exist"
+    "--pytorch-gpu-ids",
+    type=str,
+    required=True,
+    help="ID(s) of the gpu(s) to use for pytorch",
 )
-parser.add_argument("--no-tensorboard", action="store_true", default=False, help="disable tensorboard logging")
-parser.add_argument("--log-prefix", type=str, default="", required=True, help="path to logs, checkpoints, etc")
-parser.add_argument("--no-save-checkpoints", action="store_true", default=False, help="disable saving checkpoints")
 parser.add_argument(
-    "--tensorboard-dirname", type=str, default="tensorboard", help="path under log-prefix for tensorboard logs."
+    "--clear-weights",
+    action="store_true",
+    default=False,
+    help="do not load previous model weights if they exist",
+)
+parser.add_argument(
+    "--no-tensorboard",
+    action="store_true",
+    default=False,
+    help="disable tensorboard logging",
+)
+parser.add_argument(
+    "--log-prefix",
+    type=str,
+    default="",
+    required=True,
+    help="path to logs, checkpoints, etc",
+)
+parser.add_argument(
+    "--no-save-checkpoints",
+    action="store_true",
+    default=False,
+    help="disable saving checkpoints",
+)
+parser.add_argument(
+    "--tensorboard-dirname",
+    type=str,
+    default="tensorboard",
+    help="path under log-prefix for tensorboard logs.",
 )
 
 parser.add_argument(
-    "--checkpoint-dirname", type=str, default="checkpoints", help="path under log-prefix for checkpoints."
+    "--checkpoint-dirname",
+    type=str,
+    default="checkpoints",
+    help="path under log-prefix for checkpoints.",
 )
 
 best_acc1 = 0
@@ -127,7 +211,9 @@ def main():
 
     start_iter = 0
     if args.load_model:
-        start_iter = pt_util.restore_from_folder(model, os.path.join(log_prefix, args.checkpoint_dirname, "*"))
+        start_iter = pt_util.restore_from_folder(
+            model, os.path.join(log_prefix, args.checkpoint_dirname, "*")
+        )
     args.start_epoch = start_iter
 
     train_logger = None
@@ -136,7 +222,9 @@ def main():
         train_logger = tensorboard_logger.Logger(
             os.path.join(log_prefix, args.tensorboard_dirname, time_str + "_train")
         )
-        test_logger = tensorboard_logger.Logger(os.path.join(log_prefix, args.tensorboard_dirname, time_str + "_test"))
+        test_logger = tensorboard_logger.Logger(
+            os.path.join(log_prefix, args.tensorboard_dirname, time_str + "_test")
+        )
 
     main_worker(model, args.gpu, args, train_logger, test_logger, checkpoint_dir)
 
@@ -151,7 +239,12 @@ def main_worker(model, gpu, args, train_logger, test_logger, checkpoint_dir):
     # define loss function (criterion) and optimizer
     criterion = nn.CrossEntropyLoss().cuda(args.gpu)
 
-    optimizer = torch.optim.SGD(model.parameters(), args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    optimizer = torch.optim.SGD(
+        model.parameters(),
+        args.lr,
+        momentum=args.momentum,
+        weight_decay=args.weight_decay,
+    )
 
     # optionally resume from a checkpoint
     if args.resume:
@@ -165,7 +258,11 @@ def main_worker(model, gpu, args, train_logger, test_logger, checkpoint_dir):
                 best_acc1 = best_acc1.to(args.gpu)
             model.load_state_dict(checkpoint["state_dict"])
             optimizer.load_state_dict(checkpoint["optimizer"])
-            print("=> loaded checkpoint '{}' (epoch {})".format(args.resume, checkpoint["epoch"]))
+            print(
+                "=> loaded checkpoint '{}' (epoch {})".format(
+                    args.resume, checkpoint["epoch"]
+                )
+            )
         else:
             print("=> no checkpoint found at '{}'".format(args.resume))
 
@@ -229,14 +326,26 @@ def main_worker(model, gpu, args, train_logger, test_logger, checkpoint_dir):
         train(train_loader, model, criterion, optimizer, epoch, args, train_logger)
 
         # evaluate on validation set
-        acc1 = validate(val_loader, model, criterion, args, test_logger, (epoch + 1) * len(train_loader.dataset))
+        acc1 = validate(
+            val_loader,
+            model,
+            criterion,
+            args,
+            test_logger,
+            (epoch + 1) * len(train_loader.dataset),
+        )
 
         # remember best acc@1 and save checkpoint
         is_best = acc1 > best_acc1
         best_acc1 = max(acc1, best_acc1)
 
         if is_best and args.save_checkpoints:
-            pt_util.save(model, checkpoint_dir, num_to_keep=5, iteration=(epoch + 1) * len(train_loader.dataset))
+            pt_util.save(
+                model,
+                checkpoint_dir,
+                num_to_keep=5,
+                iteration=(epoch + 1) * len(train_loader.dataset),
+            )
 
 
 def train(train_loader, model, criterion, optimizer, epoch, args, logger):
@@ -348,13 +457,25 @@ def validate(val_loader, model, criterion, args, logger, iteration):
                     "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
                     "Acc@1 {top1.val:.3f} ({top1.avg:.3f})\t"
                     "Acc@5 {top5.val:.3f} ({top5.avg:.3f})".format(
-                        i, len(val_loader), batch_time=batch_time, loss=losses, top1=top1, top5=top5
+                        i,
+                        len(val_loader),
+                        batch_time=batch_time,
+                        loss=losses,
+                        top1=top1,
+                        top5=top5,
                     )
                 )
 
-        print(" * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}".format(top1=top1, top5=top5))
+        print(
+            " * Acc@1 {top1.avg:.3f} Acc@5 {top5.avg:.3f}".format(top1=top1, top5=top5)
+        )
     if logger is not None:
-        logger.dict_log(dict(batch_time=batch_time.avg, loss=losses.avg, top1=top1.avg, top5=top5.avg), iteration)
+        logger.dict_log(
+            dict(
+                batch_time=batch_time.avg, loss=losses.avg, top1=top1.avg, top5=top5.avg
+            ),
+            iteration,
+        )
     return top1.avg
 
 

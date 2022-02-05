@@ -1,13 +1,14 @@
 import pdb
+
 import cv2
 import numpy as np
 import tqdm
+from habitat import SimulatorActions
 from habitat.datasets import make_dataset
 from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower
 from habitat.utils.visualizations import maps
-from habitat import SimulatorActions
 from reinforcement_learning.get_config import get_dataset_config
-from reinforcement_learning.nav_rl_env import RunAwayRLEnv, ExplorationRLEnv
+from reinforcement_learning.nav_rl_env import ExplorationRLEnv, RunAwayRLEnv
 
 data_subset = "val"
 dataset = "mp3d"
@@ -18,17 +19,15 @@ RESOLUTION = 10
 def draw_top_down_map(info, heading, output_size):
     top_down_map = maps.colorize_topdown_map(info["top_down_map"]["map"])
     original_map_size = top_down_map.shape[:2]
-    map_scale = np.array(
-        (1, original_map_size[1] * 1.0 / original_map_size[0])
-    )
+    map_scale = np.array((1, original_map_size[1] * 1.0 / original_map_size[0]))
     new_map_size = np.round(output_size * map_scale).astype(np.int32)
     # OpenCV expects w, h but map size is in h, w
     top_down_map = cv2.resize(top_down_map, (new_map_size[1], new_map_size[0]))
 
     map_agent_pos = info["top_down_map"]["agent_map_coord"]
-    map_agent_pos = np.round(
-        map_agent_pos * new_map_size / original_map_size
-    ).astype(np.int32)
+    map_agent_pos = np.round(map_agent_pos * new_map_size / original_map_size).astype(
+        np.int32
+    )
     top_down_map = maps.draw_agent(
         top_down_map,
         map_agent_pos,
@@ -84,7 +83,9 @@ for _ in tqdm.tqdm(range(len(env.episodes))):
         env._visited = set()
         env._check_grid_cell()
         sim._is_episode_active = True
-        sim.set_agent_state(position=agent_state.position, rotation=agent_state.rotation)
+        sim.set_agent_state(
+            position=agent_state.position, rotation=agent_state.rotation
+        )
         next_point = None
 
         while not env.habitat_env.episode_over:
@@ -93,21 +94,18 @@ for _ in tqdm.tqdm(range(len(env.episodes))):
                 dist = sim.geodesic_distance(agent_state.position, point)
                 if np.isfinite(dist):
                     next_point = point
-            best_action = follower.get_next_action(
-               next_point
-            )
+            best_action = follower.get_next_action(next_point)
             if best_action != SimulatorActions.STOP:
                 observations, reward, done, info = env.step(best_action)
             else:
                 next_point = None
         coverages.append(len(env._visited))
-        print('coverages', max(coverages), coverages)
+        print("coverages", max(coverages), coverages)
     max_dists.append(max(coverages))
-    print('mean', np.mean(max_dists))
+    print("mean", np.mean(max_dists))
 
 
-
-'''
+"""
 env = RunAwayRLEnv(config=config, datasets=datasets)
 goal_radius = env.episodes[0].goals[0].radius
 if goal_radius is None:
@@ -166,4 +164,4 @@ for _ in tqdm.tqdm(range(len(env.episodes))):
             break
     max_dists.append(max(dists_on))
     print('mean', np.mean(max_dists))
-'''
+"""

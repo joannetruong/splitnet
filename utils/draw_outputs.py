@@ -33,9 +33,14 @@ def obs_to_images(obs):
         top_down_map = cv2.resize(top_down_map, (new_map_size[1], new_map_size[0]))
 
         map_agent_pos = obs["top_down_map"]["agent_map_coord"]
-        map_agent_pos = np.round(map_agent_pos * new_map_size / original_map_size).astype(np.int32)
+        map_agent_pos = np.round(
+            map_agent_pos * new_map_size / original_map_size
+        ).astype(np.int32)
         top_down_map = maps.draw_agent(
-            top_down_map, map_agent_pos, obs["heading"] - np.pi / 2, agent_radius_px=top_down_map.shape[0] / 40
+            top_down_map,
+            map_agent_pos,
+            obs["heading"] - np.pi / 2,
+            agent_radius_px=top_down_map.shape[0] / 40,
         )
     else:
         top_down_map = None
@@ -45,7 +50,10 @@ def obs_to_images(obs):
         (
             ("Method: %s" % obs["method"].replace("_", " ")),
             ("Step: %03d Reward: %.3f" % (obs["step"][0], obs.get("reward", [0])[0])),
-            ("Action: %s" % string.capwords(obs["action_taken_name"].replace("_", " "))),
+            (
+                "Action: %s"
+                % string.capwords(obs["action_taken_name"].replace("_", " "))
+            ),
         )
     ]
     images.append(top_down_map)
@@ -55,7 +63,10 @@ def obs_to_images(obs):
         titles.append("Geo Dist From Origin: %.3f" % obs["distance_from_start"][0])
     elif "pointgoal" in obs:
         titles.append(
-            (("Euc Dist:  %.3f" % obs["pointgoal"][0, 0]), ("Geo Dist: %.3f" % obs["goal_geodesic_distance"][0]))
+            (
+                ("Euc Dist:  %.3f" % obs["pointgoal"][0, 0]),
+                ("Geo Dist: %.3f" % obs["goal_geodesic_distance"][0]),
+            )
         )
 
     normalize.append(False)
@@ -77,8 +88,12 @@ def obs_to_images(obs):
             val = val.copy()
             if key == "output_surface_normals":
                 # Still need to be normalized
-                val /= np.sqrt(np.sum(val ** 2, axis=1, keepdims=True))
-            surfnorm = (np.clip((val + 1), 0, 2) * 127).astype(np.uint8).transpose((0, 2, 3, 1))
+                val /= np.sqrt(np.sum(val**2, axis=1, keepdims=True))
+            surfnorm = (
+                (np.clip((val + 1), 0, 2) * 127)
+                .astype(np.uint8)
+                .transpose((0, 2, 3, 1))
+            )
             images.append(surfnorm)
         elif key == "semantic":
             titles.append(key)
@@ -94,14 +109,23 @@ def obs_to_images(obs):
             val *= 255
             val = val.astype(np.uint8).transpose((0, 2, 3, 1))
             images.append(val)
-        elif key in {"action_prob", "action_taken", "egomotion_pred", "best_next_action"}:
+        elif key in {
+            "action_prob",
+            "action_taken",
+            "egomotion_pred",
+            "best_next_action",
+        }:
             if key == "action_prob":
-                titles.append(("Output Distribution", "p(Forward)     p(Left)     p(Right)"))
+                titles.append(
+                    ("Output Distribution", "p(Forward)     p(Left)     p(Right)")
+                )
             else:
                 titles.append(key)
             if val is not None:
                 normalize.append(True)
-                prob_hists = np.concatenate([draw_probability_hist(pi) for pi in val.copy()], axis=0)
+                prob_hists = np.concatenate(
+                    [draw_probability_hist(pi) for pi in val.copy()], axis=0
+                )
                 images.append(prob_hists)
 
             else:
@@ -109,5 +133,8 @@ def obs_to_images(obs):
                 normalize.append(False)
     images.append(top_down_map)
     normalize.append(True)
-    titles = [string.capwords(title.replace("_", " ")) if isinstance(title, str) else title for title in titles]
+    titles = [
+        string.capwords(title.replace("_", " ")) if isinstance(title, str) else title
+        for title in titles
+    ]
     return images, titles, normalize

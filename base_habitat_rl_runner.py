@@ -12,21 +12,26 @@ import gym
 import habitat
 import numpy as np
 import torch
+from arguments import get_args
 from dg_util.python_utils import misc_util
 from dg_util.python_utils import pytorch_util as pt_util
 from habitat import SimulatorActions
-
-from arguments import get_args
-from networks import networks
-from networks import optimizers
+from networks import networks, optimizers
 from networks.networks import VisualPolicy
 from reinforcement_learning.get_config import get_dataset_config
-from reinforcement_learning.nav_rl_env import make_env_fn, PointnavRLEnv, ExplorationRLEnv, RunAwayRLEnv
-from utils.env_util import VecPyTorch, HabitatVecEnvWrapper
+from reinforcement_learning.nav_rl_env import (
+    ExplorationRLEnv,
+    PointnavRLEnv,
+    RunAwayRLEnv,
+    make_env_fn,
+)
+from utils.env_util import HabitatVecEnvWrapper, VecPyTorch
 
-ACTION_SPACE = [SimulatorActions.MOVE_FORWARD,
-                SimulatorActions.TURN_LEFT,
-                SimulatorActions.TURN_RIGHT]
+ACTION_SPACE = [
+    SimulatorActions.MOVE_FORWARD,
+    SimulatorActions.TURN_LEFT,
+    SimulatorActions.TURN_RIGHT,
+]
 HABITAT_ACTION_TO_ACTION_SPACE = {val: ii for ii, val in enumerate(ACTION_SPACE)}
 ACTION_SPACE = np.array(ACTION_SPACE, dtype=np.int64)
 
@@ -40,15 +45,25 @@ SIM_ACTION_TO_NAME = {
 
 def make_task_envs(env_types, nav_configs, nav_datasets, shell_args):
     data_keys = list(nav_datasets.keys())
-    nav_datasets = [{key: nav_datasets[key][ii] for key in data_keys} for ii in range(len(nav_datasets[data_keys[0]]))]
+    nav_datasets = [
+        {key: nav_datasets[key][ii] for key in data_keys}
+        for ii in range(len(nav_datasets[data_keys[0]]))
+    ]
     env_fn_args: Tuple[Tuple] = tuple(
-        zip(env_types, nav_configs, nav_datasets, range(shell_args.seed, shell_args.seed + len(nav_configs)))
+        zip(
+            env_types,
+            nav_configs,
+            nav_datasets,
+            range(shell_args.seed, shell_args.seed + len(nav_configs)),
+        )
     )
 
     if shell_args.use_multithreading:
         envs = habitat.ThreadedVectorEnv(make_env_fn, env_fn_args)
     else:
-        envs = habitat.VectorEnv(make_env_fn, env_fn_args, multiprocessing_start_method="forkserver")
+        envs = habitat.VectorEnv(
+            make_env_fn, env_fn_args, multiprocessing_start_method="forkserver"
+        )
     envs = HabitatVecEnvWrapper(envs)
     return envs
 
@@ -78,7 +93,10 @@ class BaseHabitatRLRunner(object):
     def setup_device(self):
         self.shell_args.cuda = not self.shell_args.no_cuda and torch.cuda.is_available()
         if self.shell_args.cuda:
-            torch_devices = [int(gpu_id.strip()) for gpu_id in self.shell_args.pytorch_gpu_ids.split(",")]
+            torch_devices = [
+                int(gpu_id.strip())
+                for gpu_id in self.shell_args.pytorch_gpu_ids.split(",")
+            ]
             device = "cuda:" + str(torch_devices[0])
         else:
             torch_devices = None
@@ -90,7 +108,9 @@ class BaseHabitatRLRunner(object):
         if self.shell_args.load_model:
             self.start_iter = pt_util.restore_from_folder(
                 self.agent,
-                os.path.join(self.shell_args.log_prefix, self.shell_args.checkpoint_dirname, "*"),
+                os.path.join(
+                    self.shell_args.log_prefix, self.shell_args.checkpoint_dirname, "*"
+                ),
                 self.shell_args.saved_variable_prefix,
                 self.shell_args.new_variable_prefix,
             )
@@ -100,11 +120,18 @@ class BaseHabitatRLRunner(object):
 
     def save_checkpoint(self, num_to_keep=-1, iteration=0):
         if self.shell_args.save_checkpoints and not self.shell_args.no_weight_update:
-            pt_util.save(self.agent, self.checkpoint_dir, num_to_keep=num_to_keep, iteration=iteration)
+            pt_util.save(
+                self.agent,
+                self.checkpoint_dir,
+                num_to_keep=num_to_keep,
+                iteration=iteration,
+            )
 
     def setup(self, create_decoder):
         self.setup_device()
-        render_gpus = [int(gpu_id.strip()) for gpu_id in self.shell_args.render_gpu_ids.split(",")]
+        render_gpus = [
+            int(gpu_id.strip()) for gpu_id in self.shell_args.render_gpu_ids.split(",")
+        ]
         self.configs = []
         self.env_types = []
         for proc in range(self.shell_args.num_processes):
@@ -166,7 +193,9 @@ class BaseHabitatRLRunner(object):
             if self.shell_args.record_video:
                 config.TASK.NUM_EPISODES_BEFORE_JUMP = -1
                 config.TASK.STEP_SIZE = config.SIMULATOR.FORWARD_STEP_SIZE
-                config.TASK.TOP_DOWN_MAP.MAX_EPISODE_STEPS = config.ENVIRONMENT.MAX_EPISODE_STEPS
+                config.TASK.TOP_DOWN_MAP.MAX_EPISODE_STEPS = (
+                    config.ENVIRONMENT.MAX_EPISODE_STEPS
+                )
                 config.TASK.TOP_DOWN_MAP.MAP_RESOLUTION = 1250
 
             config.TASK.OBSERVE_BEST_NEXT_ACTION = self.shell_args.algo == "supervised"
@@ -180,7 +209,11 @@ class BaseHabitatRLRunner(object):
         if self.shell_args.blind:
             decoder_output_info = []
         else:
-            decoder_output_info = [("reconstruction", 3), ("depth", 1), ("surface_normals", 3)]
+            decoder_output_info = [
+                ("reconstruction", 3),
+                ("depth", 1),
+                ("surface_normals", 3),
+            ]
 
         if self.shell_args.encoder_network_type == "ShallowVisualEncoder":
             encoder_type = networks.ShallowVisualEncoder
@@ -238,7 +271,10 @@ class BaseHabitatRLRunner(object):
                     for param in visual_layers.class_pred_layer.parameters():
                         param.requires_grad = False
 
-        if self.shell_args.freeze_motion_decoder_features and self.shell_args.freeze_policy_decoder_features:
+        if (
+            self.shell_args.freeze_motion_decoder_features
+            and self.shell_args.freeze_policy_decoder_features
+        ):
             for param in self.agent.base.visual_projection.parameters():
                 param.requires_grad = False
 
@@ -291,16 +327,24 @@ class BaseHabitatRLRunner(object):
             "prev_action_one_hot": ((len(ACTION_SPACE),), np.dtype(np.float32)),
             "prev_action": ((1,), np.dtype(np.int64)),
         }
-        self.compute_surface_normals = self.shell_args.record_video or self.shell_args.update_encoder_features
+        self.compute_surface_normals = (
+            self.shell_args.record_video or self.shell_args.update_encoder_features
+        )
         if self.shell_args.algo == "supervised":
-            self.observation_space["best_next_action"] = ((len(ACTION_SPACE),), np.dtype(np.float32))
+            self.observation_space["best_next_action"] = (
+                (len(ACTION_SPACE),),
+                np.dtype(np.float32),
+            )
         if self.shell_args.update_encoder_features:
             self.observation_space["depth"] = ((1, height, width), np.dtype(np.float32))
             if self.compute_surface_normals:
-                self.observation_space["surface_normals"] = ((3, height, width), np.dtype(np.float32))
+                self.observation_space["surface_normals"] = (
+                    (3, height, width),
+                    np.dtype(np.float32),
+                )
         if not self.shell_args.end_to_end:
             self.observation_space["visual_encoder_features"] = (
-                (self.agent.base.num_output_channels, 256 // 2 ** 5, 256 // 2 ** 5),
+                (self.agent.base.num_output_channels, 256 // 2**5, 256 // 2**5),
                 np.dtype(np.float32),
             )
 
@@ -318,22 +362,30 @@ class BaseHabitatRLRunner(object):
                         self.configs[0].SIMULATOR.RGB_SENSOR.WIDTH,
                     )
                 ).to(self.device),
-                "target_vector": torch.rand(self.shell_args.num_processes, target_vector_size).to(self.device),
-                "prev_action_one_hot": torch.rand(self.shell_args.num_processes, self.gym_action_space.n).to(
-                    self.device
-                ),
+                "target_vector": torch.rand(
+                    self.shell_args.num_processes, target_vector_size
+                ).to(self.device),
+                "prev_action_one_hot": torch.rand(
+                    self.shell_args.num_processes, self.gym_action_space.n
+                ).to(self.device),
             },
-            torch.rand(self.shell_args.num_processes, self.agent.recurrent_hidden_state_size).to(self.device),
+            torch.rand(
+                self.shell_args.num_processes, self.agent.recurrent_hidden_state_size
+            ).to(self.device),
             torch.rand(self.shell_args.num_processes, 1).to(self.device),
         )
         print("Done feeding dummy batch %.3f" % (time.time() - dummy_start))
         self.start_iter = 0
         self.checkpoint_dir = os.path.join(
-            self.shell_args.log_prefix, self.shell_args.checkpoint_dirname, self.time_str
+            self.shell_args.log_prefix,
+            self.shell_args.checkpoint_dirname,
+            self.time_str,
         )
 
     def create_envs(self):
         start_t = time.time()
-        envs = make_task_envs(self.env_types, self.configs, self.datasets, self.shell_args)
+        envs = make_task_envs(
+            self.env_types, self.configs, self.datasets, self.shell_args
+        )
         print("Envs created in %.3f" % (time.time() - start_t))
         self.envs = VecPyTorch(envs, self.device)

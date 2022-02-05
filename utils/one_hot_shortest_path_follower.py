@@ -7,9 +7,13 @@
 from typing import Union
 
 import numpy as np
-from habitat.sims.habitat_simulator.habitat_simulator import HabitatSim
 from habitat import SimulatorActions
-from habitat.tasks.nav.shortest_path_follower import ShortestPathFollower, action_to_one_hot, EPSILON
+from habitat.sims.habitat_simulator.habitat_simulator import HabitatSim
+from habitat.tasks.nav.shortest_path_follower import (
+    EPSILON,
+    ShortestPathFollower,
+    action_to_one_hot,
+)
 from habitat.utils.geometry_utils import angle_between_quaternions
 
 
@@ -22,7 +26,10 @@ class OneHotShortestPathFollower(ShortestPathFollower):
         self, goal_pos: np.array, previous_action: int
     ) -> Union[int, np.array]:
         """Returns the next action along the shortest path."""
-        if np.linalg.norm(goal_pos - self._sim.get_agent_state().position) <= self._goal_radius:
+        if (
+            np.linalg.norm(goal_pos - self._sim.get_agent_state().position)
+            <= self._goal_radius
+        ):
             return action_to_one_hot(SimulatorActions.STOP)
 
         max_grad_dir = self._est_max_grad_dir(goal_pos)
@@ -38,7 +45,10 @@ class OneHotShortestPathFollower(ShortestPathFollower):
         if alpha <= np.deg2rad(self._sim.config.TURN_ANGLE) + EPSILON:
             return action_to_one_hot(SimulatorActions.MOVE_FORWARD)
         else:
-            if previous_action == SimulatorActions.TURN_LEFT or previous_action == SimulatorActions.TURN_RIGHT:
+            if (
+                previous_action == SimulatorActions.TURN_LEFT
+                or previous_action == SimulatorActions.TURN_RIGHT
+            ):
                 # Previous action was a turn, make current suggestion match previous action.
                 best_turn = previous_action
             else:
@@ -46,7 +56,12 @@ class OneHotShortestPathFollower(ShortestPathFollower):
                 self._sim.step(sim_action)
                 best_turn = (
                     SimulatorActions.TURN_LEFT
-                    if (angle_between_quaternions(grad_dir, self._sim.get_agent_state().rotation) < alpha)
+                    if (
+                        angle_between_quaternions(
+                            grad_dir, self._sim.get_agent_state().rotation
+                        )
+                        < alpha
+                    )
                     else SimulatorActions.TURN_RIGHT
                 )
                 self._reset_agent_state(current_state)

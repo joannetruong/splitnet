@@ -6,7 +6,6 @@
 
 import torch
 from baselines.common.vec_env.vec_env import VecEnvWrapper
-
 from dg_util.python_utils import pytorch_util as pt_util
 
 
@@ -14,7 +13,9 @@ class HabitatVecEnvWrapper(VecEnvWrapper):
     def __init__(self, venv):
         observation_space = venv.observation_spaces[0]
         action_space = venv.action_spaces[0]
-        super(HabitatVecEnvWrapper, self).__init__(venv, observation_space, action_space)
+        super(HabitatVecEnvWrapper, self).__init__(
+            venv, observation_space, action_space
+        )
 
     @staticmethod
     def package_data(data):

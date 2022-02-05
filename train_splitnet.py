@@ -8,21 +8,20 @@ import datetime
 import os
 import random
 import time
-from collections import deque, OrderedDict
+from collections import OrderedDict, deque
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from a2c_ppo_acktr.utils import update_linear_schedule
-from dg_util.python_utils import drawing
+from base_habitat_rl_runner import ACTION_SPACE, SIM_ACTION_TO_NAME
+from dg_util.python_utils import
 from dg_util.python_utils import pytorch_util as pt_util
 from dg_util.python_utils import tensorboard_logger
-from habitat.datasets import make_dataset
+from eval_splitnet import REWARD_SCALAR, HabitatRLEvalRunner
 from habitat import SimulatorActions
+from habitat.datasets import make_dataset
 from habitat.utils.visualizations.utils import images_to_video
-
-from base_habitat_rl_runner import ACTION_SPACE, SIM_ACTION_TO_NAME
-from eval_splitnet import HabitatRLEvalRunner, REWARD_SCALAR
 from utils import draw_outputs
 from utils.storage import RolloutStorageWithMultipleObservations
 
@@ -35,7 +34,10 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
         super(HabitatRLTrainAndEvalRunner, self).__init__(create_decoder)
 
     def setup(self, create_decoder=True):
-        assert self.shell_args.update_policy_decoder_features or self.shell_args.update_encoder_features
+        assert (
+            self.shell_args.update_policy_decoder_features
+            or self.shell_args.update_encoder_features
+        )
         super(HabitatRLTrainAndEvalRunner, self).setup(create_decoder)
         self.shell_args.cuda = not self.shell_args.no_cuda and torch.cuda.is_available()
 
@@ -43,7 +45,11 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
         start_t = time.time()
         config = self.configs[0]
         dataset = make_dataset(config.DATASET.TYPE, config=config.DATASET)
-        observation_shape_chw = (3, config.SIMULATOR.RGB_SENSOR.HEIGHT, config.SIMULATOR.RGB_SENSOR.WIDTH)
+        observation_shape_chw = (
+            3,
+            config.SIMULATOR.RGB_SENSOR.HEIGHT,
+            config.SIMULATOR.RGB_SENSOR.WIDTH,
+        )
         print("made dataset")
 
         assert len(dataset.episodes) > 0, "empty datasets"
@@ -58,7 +64,9 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
             random.shuffle(dataset.episodes)
 
         datasets = dataset.get_splits(
-            self.shell_args.num_processes, remove_unused_episodes=True, collate_scene_ids=True
+            self.shell_args.num_processes,
+            remove_unused_episodes=True,
+            collate_scene_ids=True,
         )
 
         print("Dataset creation time %.3f" % (time.time() - start_t))
@@ -82,7 +90,11 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
         self.logger = None
         if self.shell_args.tensorboard:
             self.logger = tensorboard_logger.Logger(
-                os.path.join(self.shell_args.log_prefix, self.shell_args.tensorboard_dirname, self.time_str + "_train")
+                os.path.join(
+                    self.shell_args.log_prefix,
+                    self.shell_args.tensorboard_dirname,
+                    self.time_str + "_train",
+                )
             )
 
         self.datasets = {"train": datasets, "val": self.eval_datasets}
@@ -94,10 +106,18 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
             spl=np.zeros(self.shell_args.num_processes, dtype=np.float32),
             visited_states=np.zeros(self.shell_args.num_processes, dtype=np.int32),
             success=np.zeros(self.shell_args.num_processes, dtype=np.int32),
-            end_geodesic_distance=np.zeros(self.shell_args.num_processes, dtype=np.float32),
-            start_geodesic_distance=np.zeros(self.shell_args.num_processes, dtype=np.float32),
-            delta_geodesic_distance=np.zeros(self.shell_args.num_processes, dtype=np.float32),
-            distance_from_start=np.zeros(self.shell_args.num_processes, dtype=np.float32),
+            end_geodesic_distance=np.zeros(
+                self.shell_args.num_processes, dtype=np.float32
+            ),
+            start_geodesic_distance=np.zeros(
+                self.shell_args.num_processes, dtype=np.float32
+            ),
+            delta_geodesic_distance=np.zeros(
+                self.shell_args.num_processes, dtype=np.float32
+            ),
+            distance_from_start=np.zeros(
+                self.shell_args.num_processes, dtype=np.float32
+            ),
         )
 
     def train_model(self):
@@ -118,10 +138,16 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
 
         obs = self.envs.reset()
         if self.compute_surface_normals:
-            obs["surface_normals"] = pt_util.depth_to_surface_normals(obs["depth"].to(self.device))
-        obs["prev_action_one_hot"] = obs["prev_action_one_hot"][:, ACTION_SPACE].to(torch.float32)
+            obs["surface_normals"] = pt_util.depth_to_surface_normals(
+                obs["depth"].to(self.device)
+            )
+        obs["prev_action_one_hot"] = obs["prev_action_one_hot"][:, ACTION_SPACE].to(
+            torch.float32
+        )
         if self.shell_args.algo == "supervised":
-            obs["best_next_action"] = pt_util.from_numpy(obs["best_next_action"][:, ACTION_SPACE])
+            obs["best_next_action"] = pt_util.from_numpy(
+                obs["best_next_action"][:, ACTION_SPACE]
+            )
         self.rollouts.copy_obs(obs, 0)
         distances = pt_util.to_numpy(obs["goal_geodesic_distance"])
         self.train_stats["start_geodesic_distance"][:] = distances
@@ -130,7 +156,8 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
         prev_action = None
         prev_action_probs = None
         num_updates = (
-            int(self.shell_args.num_env_steps) // self.shell_args.num_forward_rollout_steps
+            int(self.shell_args.num_env_steps)
+            // self.shell_args.num_forward_rollout_steps
         ) // self.shell_args.num_processes
 
         try:
@@ -141,14 +168,26 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                         self.logger.network_conv_summary(self.agent, total_num_steps)
                     elif iter_count % 100 == 0:
                         print("Logging variable summaries")
-                        self.logger.network_variable_summary(self.agent, total_num_steps)
+                        self.logger.network_variable_summary(
+                            self.agent, total_num_steps
+                        )
 
                 if self.shell_args.use_linear_lr_decay:
                     # decrease learning rate linearly
-                    update_linear_schedule(self.optimizer.optimizer, iter_count, num_updates, self.shell_args.lr)
+                    update_linear_schedule(
+                        self.optimizer.optimizer,
+                        iter_count,
+                        num_updates,
+                        self.shell_args.lr,
+                    )
 
-                if self.shell_args.algo == "ppo" and self.shell_args.use_linear_clip_decay:
-                    self.optimizer.clip_param = self.shell_args.clip_param * (1 - iter_count / float(num_updates))
+                if (
+                    self.shell_args.algo == "ppo"
+                    and self.shell_args.use_linear_clip_decay
+                ):
+                    self.optimizer.clip_param = self.shell_args.clip_param * (
+                        1 - iter_count / float(num_updates)
+                    )
 
                 if hasattr(self.agent.base, "enable_decoder"):
                     if self.shell_args.record_video:
@@ -159,13 +198,24 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                 for step in range(self.shell_args.num_forward_rollout_steps):
                     with torch.no_grad():
                         start_t = time.time()
-                        value, action, action_log_prob, recurrent_hidden_states = self.agent.act(
+                        (
+                            value,
+                            action,
+                            action_log_prob,
+                            recurrent_hidden_states,
+                        ) = self.agent.act(
                             {
                                 "images": self.rollouts.obs[step],
-                                "target_vector": self.rollouts.additional_observations_dict["pointgoal"][step],
+                                "target_vector": self.rollouts.additional_observations_dict[
+                                    "pointgoal"
+                                ][
+                                    step
+                                ],
                                 "prev_action_one_hot": self.rollouts.additional_observations_dict[
                                     "prev_action_one_hot"
-                                ][step],
+                                ][
+                                    step
+                                ],
                             },
                             self.rollouts.recurrent_hidden_states[step],
                             self.rollouts.masks[step],
@@ -173,17 +223,22 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                         action_cpu = pt_util.to_numpy(action.squeeze(1))
                         translated_action_space = ACTION_SPACE[action_cpu]
                         if not self.shell_args.end_to_end:
-                            self.rollouts.additional_observations_dict["visual_encoder_features"][
-                                self.rollouts.step
-                            ].copy_(self.agent.base.visual_encoder_features)
+                            self.rollouts.additional_observations_dict[
+                                "visual_encoder_features"
+                            ][self.rollouts.step].copy_(
+                                self.agent.base.visual_encoder_features
+                            )
 
                         if self.shell_args.use_motion_loss:
                             if self.shell_args.record_video:
                                 if previous_visual_features is not None:
                                     egomotion_pred = self.agent.base.predict_egomotion(
-                                        self.agent.base.visual_features, previous_visual_features
+                                        self.agent.base.visual_features,
+                                        previous_visual_features,
                                     )
-                            previous_visual_features = self.agent.base.visual_features.detach()
+                            previous_visual_features = (
+                                self.agent.base.visual_features.detach()
+                            )
 
                         timers[1] += time.time() - start_t
 
@@ -195,14 +250,25 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                             best_next_action = draw_obs.pop("best_next_action", None)
 
                             if prev_action is not None:
-                                draw_obs["action_taken"] = pt_util.to_numpy(self.agent.last_dist.probs).copy()
+                                draw_obs["action_taken"] = pt_util.to_numpy(
+                                    self.agent.last_dist.probs
+                                ).copy()
                                 draw_obs["action_taken"][:] = 0
-                                draw_obs["action_taken"][np.arange(self.shell_args.num_processes), prev_action] = 1
-                                draw_obs["action_taken_name"] = SIM_ACTION_TO_NAME[draw_obs['prev_action'].item()]
-                                draw_obs["action_prob"] = pt_util.to_numpy(prev_action_probs).copy()
+                                draw_obs["action_taken"][
+                                    np.arange(self.shell_args.num_processes),
+                                    prev_action,
+                                ] = 1
+                                draw_obs["action_taken_name"] = SIM_ACTION_TO_NAME[
+                                    draw_obs["prev_action"].item()
+                                ]
+                                draw_obs["action_prob"] = pt_util.to_numpy(
+                                    prev_action_probs
+                                ).copy()
                             else:
                                 draw_obs["action_taken"] = None
-                                draw_obs["action_taken_name"] = SIM_ACTION_TO_NAME[SimulatorActions.STOP]
+                                draw_obs["action_taken_name"] = SIM_ACTION_TO_NAME[
+                                    SimulatorActions.STOP
+                                ]
                                 draw_obs["action_prob"] = None
                             prev_action = action_cpu
                             prev_action_probs = self.agent.last_dist.probs.detach()
@@ -211,11 +277,16 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                                 and self.agent.base.decoder_outputs is not None
                             ):
                                 min_channel = 0
-                                for key, num_channels in self.agent.base.decoder_output_info:
+                                for (
+                                    key,
+                                    num_channels,
+                                ) in self.agent.base.decoder_output_info:
                                     outputs = self.agent.base.decoder_outputs[
                                         :, min_channel : min_channel + num_channels, ...
                                     ]
-                                    draw_obs["output_" + key] = pt_util.to_numpy(outputs).copy()
+                                    draw_obs["output_" + key] = pt_util.to_numpy(
+                                        outputs
+                                    ).copy()
                                     min_channel += num_channels
                             draw_obs["rewards"] = current_rewards.copy()
                             draw_obs["step"] = current_episode_lengths.copy()
@@ -229,7 +300,9 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                                     ).copy()
                                 else:
                                     draw_obs["egomotion_pred"] = None
-                            images, titles, normalize = draw_outputs.obs_to_images(draw_obs)
+                            images, titles, normalize = draw_outputs.obs_to_images(
+                                draw_obs
+                            )
                             if self.shell_args.algo == "supervised":
                                 im_inds = [0, 2, 3, 1, 9, 6, 7, 8, 5, 4]
                             else:
@@ -251,14 +324,18 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                         distances = pt_util.to_numpy(obs["goal_geodesic_distance"])
 
                         start_t = time.time()
-                        obs, rewards, dones, infos = self.envs.step(translated_action_space)
+                        obs, rewards, dones, infos = self.envs.step(
+                            translated_action_space
+                        )
                         timers[0] += time.time() - start_t
                         obs["reward"] = rewards
                         if self.shell_args.algo == "supervised":
-                            obs["best_next_action"] = pt_util.from_numpy(obs["best_next_action"][:, ACTION_SPACE]).to(
-                                torch.float32
-                            )
-                        obs["prev_action_one_hot"] = obs["prev_action_one_hot"][:, ACTION_SPACE].to(torch.float32)
+                            obs["best_next_action"] = pt_util.from_numpy(
+                                obs["best_next_action"][:, ACTION_SPACE]
+                            ).to(torch.float32)
+                        obs["prev_action_one_hot"] = obs["prev_action_one_hot"][
+                            :, ACTION_SPACE
+                        ].to(torch.float32)
                         rewards *= REWARD_SCALAR
                         rewards = np.clip(rewards, -10, 10)
 
@@ -266,7 +343,9 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                             obs["top_down_map"] = infos[0]["top_down_map"]
 
                         if self.compute_surface_normals:
-                            obs["surface_normals"] = pt_util.depth_to_surface_normals(obs["depth"].to(self.device))
+                            obs["surface_normals"] = pt_util.depth_to_surface_normals(
+                                obs["depth"].to(self.device)
+                            )
 
                         current_rewards = pt_util.to_numpy(rewards)
                         current_episode_rewards += pt_util.to_numpy(rewards).squeeze()
@@ -275,27 +354,58 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                             if done_e:
                                 num_episodes += 1
                                 if self.shell_args.record_video:
-                                    final_rgb = draw_obs["rgb"].transpose(0, 2, 3, 1).squeeze(0)
+                                    final_rgb = (
+                                        draw_obs["rgb"].transpose(0, 2, 3, 1).squeeze(0)
+                                    )
                                     if self.shell_args.task == "pointnav":
                                         if infos[ii]["spl"] > 0:
-                                            draw_obs["action_taken_name"] = "Stop. Success"
-                                            draw_obs["reward"] = [self.configs[0].TASK.SUCCESS_REWARD]
-                                            final_rgb[:] = final_rgb * np.float32(0.5) + np.tile(
+                                            draw_obs[
+                                                "action_taken_name"
+                                            ] = "Stop. Success"
+                                            draw_obs["reward"] = [
+                                                self.configs[0].TASK.SUCCESS_REWARD
+                                            ]
+                                            final_rgb[:] = final_rgb * np.float32(
+                                                0.5
+                                            ) + np.tile(
                                                 np.array([0, 128, 0], dtype=np.uint8),
-                                                (final_rgb.shape[0], final_rgb.shape[1], 1),
+                                                (
+                                                    final_rgb.shape[0],
+                                                    final_rgb.shape[1],
+                                                    1,
+                                                ),
                                             )
                                         else:
-                                            draw_obs["action_taken_name"] = "Timeout. Failed"
-                                            final_rgb[:] = final_rgb * np.float32(0.5) + np.tile(
+                                            draw_obs[
+                                                "action_taken_name"
+                                            ] = "Timeout. Failed"
+                                            final_rgb[:] = final_rgb * np.float32(
+                                                0.5
+                                            ) + np.tile(
                                                 np.array([128, 0, 0], dtype=np.uint8),
-                                                (final_rgb.shape[0], final_rgb.shape[1], 1),
+                                                (
+                                                    final_rgb.shape[0],
+                                                    final_rgb.shape[1],
+                                                    1,
+                                                ),
                                             )
-                                    elif self.shell_args.task == "exploration" or self.shell_args.task == "flee":
-                                        draw_obs["action_taken_name"] = "End of episode."
-                                    final_rgb = final_rgb[np.newaxis, ...].transpose(0, 3, 1, 2)
+                                    elif (
+                                        self.shell_args.task == "exploration"
+                                        or self.shell_args.task == "flee"
+                                    ):
+                                        draw_obs[
+                                            "action_taken_name"
+                                        ] = "End of episode."
+                                    final_rgb = final_rgb[np.newaxis, ...].transpose(
+                                        0, 3, 1, 2
+                                    )
                                     draw_obs["rgb"] = final_rgb
 
-                                    images, titles, normalize = draw_outputs.obs_to_images(draw_obs)
+                                    (
+                                        images,
+                                        titles,
+                                        normalize,
+                                    ) = draw_outputs.obs_to_images(draw_obs)
                                     im_inds = [0, 2, 3, 1, 6, 7, 8, 5]
                                     height, width = images[0].shape[:2]
                                     subplot_image = drawing.subplot(
@@ -310,25 +420,39 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                                     )
                                     video_frames.extend(
                                         [subplot_image]
-                                        * (self.configs[0].ENVIRONMENT.MAX_EPISODE_STEPS + 30 - len(video_frames))
+                                        * (
+                                            self.configs[
+                                                0
+                                            ].ENVIRONMENT.MAX_EPISODE_STEPS
+                                            + 30
+                                            - len(video_frames)
+                                        )
                                     )
 
                                     if "top_down_map" in infos[0]:
-                                        video_dir = os.path.join(self.shell_args.log_prefix, "videos")
+                                        video_dir = os.path.join(
+                                            self.shell_args.log_prefix, "videos"
+                                        )
                                         if not os.path.exists(video_dir):
                                             os.makedirs(video_dir)
                                         im_path = os.path.join(
-                                            self.shell_args.log_prefix, "videos", "total_steps_%d.png" % total_num_steps
+                                            self.shell_args.log_prefix,
+                                            "videos",
+                                            "total_steps_%d.png" % total_num_steps,
                                         )
-                                        from habitat.utils.visualizations import maps
                                         import imageio
+                                        from habitat.utils.visualizations import maps
 
-                                        top_down_map = maps.colorize_topdown_map(infos[0]["top_down_map"]["map"])
+                                        top_down_map = maps.colorize_topdown_map(
+                                            infos[0]["top_down_map"]["map"]
+                                        )
                                         imageio.imsave(im_path, top_down_map)
 
                                     images_to_video(
                                         video_frames,
-                                        os.path.join(self.shell_args.log_prefix, "videos"),
+                                        os.path.join(
+                                            self.shell_args.log_prefix, "videos"
+                                        ),
                                         "total_steps_%d" % total_num_steps,
                                     )
                                     video_frames = []
@@ -344,76 +468,134 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                                         )
                                     )
                                     self.train_stats["spl"][ii] = infos[ii]["spl"]
-                                    self.train_stats["success"][ii] = self.train_stats["spl"][ii] > 0
+                                    self.train_stats["success"][ii] = (
+                                        self.train_stats["spl"][ii] > 0
+                                    )
                                     self.train_stats["end_geodesic_distance"][ii] = (
-                                        distances[ii] - self.configs[0].SIMULATOR.FORWARD_STEP_SIZE
+                                        distances[ii]
+                                        - self.configs[0].SIMULATOR.FORWARD_STEP_SIZE
                                     )
                                     self.train_stats["delta_geodesic_distance"][ii] = (
                                         self.train_stats["start_geodesic_distance"][ii]
                                         - self.train_stats["end_geodesic_distance"][ii]
                                     )
-                                    self.train_stats["num_steps"][ii] = current_episode_lengths[ii]
+                                    self.train_stats["num_steps"][
+                                        ii
+                                    ] = current_episode_lengths[ii]
                                 elif self.shell_args.task == "exploration":
                                     print(
                                         "FINISHED EPISODE %d Reward %.3f States Visited %d"
-                                        % (num_episodes, current_episode_rewards[ii], infos[ii]["visited_states"])
+                                        % (
+                                            num_episodes,
+                                            current_episode_rewards[ii],
+                                            infos[ii]["visited_states"],
+                                        )
                                     )
-                                    self.train_stats["visited_states"][ii] = infos[ii]["visited_states"]
+                                    self.train_stats["visited_states"][ii] = infos[ii][
+                                        "visited_states"
+                                    ]
                                 elif self.shell_args.task == "flee":
                                     print(
                                         "FINISHED EPISODE %d Reward %.3f Distance from start %.4f"
-                                        % (num_episodes, current_episode_rewards[ii], infos[ii]["distance_from_start"])
+                                        % (
+                                            num_episodes,
+                                            current_episode_rewards[ii],
+                                            infos[ii]["distance_from_start"],
+                                        )
                                     )
-                                    self.train_stats["distance_from_start"][ii] = infos[ii]["distance_from_start"]
+                                    self.train_stats["distance_from_start"][ii] = infos[
+                                        ii
+                                    ]["distance_from_start"]
 
                                 self.train_stats["num_episodes"][ii] += 1
-                                self.train_stats["reward"][ii] = current_episode_rewards[ii]
+                                self.train_stats["reward"][
+                                    ii
+                                ] = current_episode_rewards[ii]
 
                                 if self.shell_args.tensorboard:
-                                    log_dict = {"single_episode/reward": self.train_stats["reward"][ii]}
+                                    log_dict = {
+                                        "single_episode/reward": self.train_stats[
+                                            "reward"
+                                        ][ii]
+                                    }
                                     if self.shell_args.task == "pointnav":
                                         log_dict.update(
                                             {
-                                                "single_episode/num_steps": self.train_stats["num_steps"][ii],
-                                                "single_episode/spl": self.train_stats["spl"][ii],
-                                                "single_episode/success": self.train_stats["success"][ii],
+                                                "single_episode/num_steps": self.train_stats[
+                                                    "num_steps"
+                                                ][
+                                                    ii
+                                                ],
+                                                "single_episode/spl": self.train_stats[
+                                                    "spl"
+                                                ][ii],
+                                                "single_episode/success": self.train_stats[
+                                                    "success"
+                                                ][
+                                                    ii
+                                                ],
                                                 "single_episode/start_geodesic_distance": self.train_stats[
                                                     "start_geodesic_distance"
-                                                ][ii],
+                                                ][
+                                                    ii
+                                                ],
                                                 "single_episode/end_geodesic_distance": self.train_stats[
                                                     "end_geodesic_distance"
-                                                ][ii],
+                                                ][
+                                                    ii
+                                                ],
                                                 "single_episode/delta_geodesic_distance": self.train_stats[
                                                     "delta_geodesic_distance"
-                                                ][ii],
+                                                ][
+                                                    ii
+                                                ],
                                             }
                                         )
                                     elif self.shell_args.task == "exploration":
-                                        log_dict["single_episode/visited_states"] = self.train_stats["visited_states"][
-                                            ii
-                                        ]
+                                        log_dict[
+                                            "single_episode/visited_states"
+                                        ] = self.train_stats["visited_states"][ii]
                                     elif self.shell_args.task == "flee":
-                                        log_dict["single_episode/distance_from_start"] = self.train_stats[
-                                            "distance_from_start"
-                                        ][ii]
+                                        log_dict[
+                                            "single_episode/distance_from_start"
+                                        ] = self.train_stats["distance_from_start"][ii]
                                     self.logger.dict_log(
-                                        log_dict, step=(total_num_steps + self.shell_args.num_processes * step + ii)
+                                        log_dict,
+                                        step=(
+                                            total_num_steps
+                                            + self.shell_args.num_processes * step
+                                            + ii
+                                        ),
                                     )
 
                                 episode_rewards.append(current_episode_rewards[ii])
                                 current_episode_rewards[ii] = 0
                                 episode_lengths.append(current_episode_lengths[ii])
                                 current_episode_lengths[ii] = 0
-                                self.train_stats["start_geodesic_distance"][ii] = obs["goal_geodesic_distance"][ii]
+                                self.train_stats["start_geodesic_distance"][ii] = obs[
+                                    "goal_geodesic_distance"
+                                ][ii]
 
                         # If done then clean the history of observations.
-                        masks = torch.FloatTensor([[0.0] if done_ else [1.0] for done_ in dones])
+                        masks = torch.FloatTensor(
+                            [[0.0] if done_ else [1.0] for done_ in dones]
+                        )
                         bad_masks = torch.FloatTensor(
-                            [[0.0] if "bad_transition" in info.keys() else [1.0] for info in infos]
+                            [
+                                [0.0] if "bad_transition" in info.keys() else [1.0]
+                                for info in infos
+                            ]
                         )
 
                         self.rollouts.insert(
-                            obs, recurrent_hidden_states, action, action_log_prob, value, rewards, masks, bad_masks
+                            obs,
+                            recurrent_hidden_states,
+                            action,
+                            action_log_prob,
+                            value,
+                            rewards,
+                            masks,
+                            bad_masks,
                         )
 
                 with torch.no_grad():
@@ -421,8 +603,12 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                     next_value = self.agent.get_value(
                         {
                             "images": self.rollouts.obs[-1],
-                            "target_vector": self.rollouts.additional_observations_dict["pointgoal"][-1],
-                            "prev_action_one_hot": self.rollouts.additional_observations_dict["prev_action_one_hot"][
+                            "target_vector": self.rollouts.additional_observations_dict[
+                                "pointgoal"
+                            ][-1],
+                            "prev_action_one_hot": self.rollouts.additional_observations_dict[
+                                "prev_action_one_hot"
+                            ][
                                 -1
                             ],
                         },
@@ -432,7 +618,10 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                     timers[1] += time.time() - start_t
 
                 self.rollouts.compute_returns(
-                    next_value, self.shell_args.use_gae, self.shell_args.gamma, self.shell_args.tau
+                    next_value,
+                    self.shell_args.use_gae,
+                    self.shell_args.gamma,
+                    self.shell_args.tau,
                 )
 
                 if not self.shell_args.no_weight_update:
@@ -463,17 +652,28 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                 self.rollouts.after_update()
 
                 # save for every interval-th episode or for the last epoch
-                if iter_count % self.shell_args.save_interval == 0 or iter_count == num_updates - 1:
+                if (
+                    iter_count % self.shell_args.save_interval == 0
+                    or iter_count == num_updates - 1
+                ):
                     self.save_checkpoint(5, total_num_steps)
 
-                total_num_steps += self.shell_args.num_processes * self.shell_args.num_forward_rollout_steps
+                total_num_steps += (
+                    self.shell_args.num_processes
+                    * self.shell_args.num_forward_rollout_steps
+                )
 
-                if not self.shell_args.no_weight_update and iter_count % self.shell_args.log_interval == 0:
+                if (
+                    not self.shell_args.no_weight_update
+                    and iter_count % self.shell_args.log_interval == 0
+                ):
                     log_dict = {}
                     if len(episode_rewards) > 1:
                         end = time.time()
                         nsteps = total_num_steps - fps_timer[1]
-                        fps = int((total_num_steps - fps_timer[1]) / (end - fps_timer[0]))
+                        fps = int(
+                            (total_num_steps - fps_timer[1]) / (end - fps_timer[0])
+                        )
                         timers /= nsteps
                         env_spf = timers[0]
                         forward_spf = timers[1]
@@ -509,11 +709,15 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                                     "stats/forward_fps": 1.0 / (forward_spf + 1e-10),
                                     "stats/backward_fps": 1.0 / (backward_spf + 1e-10),
                                     "episode/mean_rewards": np.mean(episode_rewards),
-                                    "episode/median_rewards": np.median(episode_rewards),
+                                    "episode/median_rewards": np.median(
+                                        episode_rewards
+                                    ),
                                     "episode/min_rewards": np.min(episode_rewards),
                                     "episode/max_rewards": np.max(episode_rewards),
                                     "episode/mean_lengths": np.mean(episode_lengths),
-                                    "episode/median_lengths": np.median(episode_lengths),
+                                    "episode/median_lengths": np.median(
+                                        episode_lengths
+                                    ),
                                     "episode/min_lengths": np.min(episode_lengths),
                                     "episode/max_lengths": np.max(episode_lengths),
                                 }
@@ -532,27 +736,41 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                             }
                         )
                         if self.shell_args.algo != "supervised":
-                            log_dict.update({"loss/entropy": dist_entropy, "loss/value": value_loss})
+                            log_dict.update(
+                                {"loss/entropy": dist_entropy, "loss/value": value_loss}
+                            )
                         for key, val in visual_loss_dict.items():
                             log_dict["loss/visual/" + key] = val
                         self.logger.dict_log(log_dict, step=total_num_steps)
 
-                if self.shell_args.eval_interval is not None and total_num_steps % self.shell_args.eval_interval < (
-                    self.shell_args.num_processes * self.shell_args.num_forward_rollout_steps
+                if (
+                    self.shell_args.eval_interval is not None
+                    and total_num_steps % self.shell_args.eval_interval
+                    < (
+                        self.shell_args.num_processes
+                        * self.shell_args.num_forward_rollout_steps
+                    )
                 ):
                     self.save_checkpoint(-1, total_num_steps)
                     self.set_log_iter(total_num_steps)
                     self.evaluate_model()
                     # reset the env datasets
                     self.envs.unwrapped.call(
-                        ["switch_dataset"] * self.shell_args.num_processes, [("train",)] * self.shell_args.num_processes
+                        ["switch_dataset"] * self.shell_args.num_processes,
+                        [("train",)] * self.shell_args.num_processes,
                     )
                     obs = self.envs.reset()
                     if self.compute_surface_normals:
-                        obs["surface_normals"] = pt_util.depth_to_surface_normals(obs["depth"].to(self.device))
-                    obs["prev_action_one_hot"] = obs["prev_action_one_hot"][:, ACTION_SPACE].to(torch.float32)
+                        obs["surface_normals"] = pt_util.depth_to_surface_normals(
+                            obs["depth"].to(self.device)
+                        )
+                    obs["prev_action_one_hot"] = obs["prev_action_one_hot"][
+                        :, ACTION_SPACE
+                    ].to(torch.float32)
                     if self.shell_args.algo == "supervised":
-                        obs["best_next_action"] = pt_util.from_numpy(obs["best_next_action"][:, ACTION_SPACE])
+                        obs["best_next_action"] = pt_util.from_numpy(
+                            obs["best_next_action"][:, ACTION_SPACE]
+                        )
                     self.rollouts.copy_obs(obs, 0)
                     distances = pt_util.to_numpy(obs["goal_geodesic_distance"])
                     self.train_stats["start_geodesic_distance"][:] = distances

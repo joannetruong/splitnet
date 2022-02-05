@@ -36,7 +36,9 @@ class MultiDatasetEnv(habitat.RLEnv, ABC):
         self._env._episodes = self._dataset.episodes if self._dataset else []
         if data_type == "train":
             print("jumping to random spot")
-            self.habitat_env._current_episode_index = random.randint(0, len(self.episodes) - 1)
+            self.habitat_env._current_episode_index = random.randint(
+                0, len(self.episodes) - 1
+            )
             print("ind", self.habitat_env._current_episode_index)
 
     @property
@@ -69,9 +71,14 @@ class FormattedRLEnv(MultiDatasetEnv, ABC):
             self._num_episodes_before_jump = -1
 
     def reset(self):
-        if self._num_episodes_before_jump > 0 and (self._total_episode_count % self._num_episodes_before_jump) == 0:
+        if (
+            self._num_episodes_before_jump > 0
+            and (self._total_episode_count % self._num_episodes_before_jump) == 0
+        ):
             print("jumping to random spot")
-            self.habitat_env._current_episode_index = random.randint(0, len(self.episodes) - 1)
+            self.habitat_env._current_episode_index = random.randint(
+                0, len(self.episodes) - 1
+            )
             print("ind", self.habitat_env._current_episode_index)
         self._total_episode_count += 1
 
@@ -108,7 +115,10 @@ class FormattedRLEnv(MultiDatasetEnv, ABC):
         )
 
         if self._previous_action == SimulatorActions.MOVE_FORWARD:
-            if np.linalg.norm(self._current_pose[0] - self._previous_pose[0]) < self._step_size * 0.25:
+            if (
+                np.linalg.norm(self._current_pose[0] - self._previous_pose[0])
+                < self._step_size * 0.25
+            ):
                 # Collided with something
                 reward += self._collision_reward
         return reward
@@ -124,12 +134,16 @@ class FormattedRLEnv(MultiDatasetEnv, ABC):
             obs["depth"] = depth
         # Action you took to get this image.
         obs["prev_action"] = self._previous_action
-        obs["prev_action_one_hot"] = pt_util.get_one_hot_numpy(self._previous_action, len(SimulatorActions))
+        obs["prev_action_one_hot"] = pt_util.get_one_hot_numpy(
+            self._previous_action, len(SimulatorActions)
+        )
         return obs
 
     def get_info(self, observations):
         info = super(FormattedRLEnv, self).get_info(observations)
-        info["episode_id"] = self.habitat_env.episodes[self.habitat_env._current_episode_index].episode_id
+        info["episode_id"] = self.habitat_env.episodes[
+            self.habitat_env._current_episode_index
+        ].episode_id
         return info
 
 
@@ -145,7 +159,9 @@ class PointnavRLEnv(FormattedRLEnv):
         super(PointnavRLEnv, self).__init__(config, datasets)
         if self._return_best_next_action:
             sim: habitat.sims.habitat_simulator.HabitatSim = self.habitat_env.sim
-            self._follower = one_hot_shortest_path_follower.OneHotShortestPathFollower(sim, self._success_distance)
+            self._follower = one_hot_shortest_path_follower.OneHotShortestPathFollower(
+                sim, self._success_distance
+            )
 
     def reset(self):
         formatted_obs = super(PointnavRLEnv, self).reset()
@@ -176,7 +192,9 @@ class PointnavRLEnv(FormattedRLEnv):
         reward = super(PointnavRLEnv, self).get_reward(observations)
 
         current_target_distance = self._distance_target()
-        self._delta_target_distance = self._previous_target_distance - current_target_distance
+        self._delta_target_distance = (
+            self._previous_target_distance - current_target_distance
+        )
         self._previous_target_distance = current_target_distance
 
         reward += self._delta_target_distance
@@ -195,7 +213,9 @@ class PointnavRLEnv(FormattedRLEnv):
     def _distance_target(self):
         current_position = self.habitat_env.sim.get_agent_state().position
         target_position = self.habitat_env.current_episode.goals[0].position
-        distance = self.habitat_env.sim.geodesic_distance(current_position, target_position)
+        distance = self.habitat_env.sim.geodesic_distance(
+            current_position, target_position
+        )
         return distance
 
     def _episode_success(self):
@@ -242,7 +262,8 @@ class ExplorationRLEnv(FormattedRLEnv):
             # Use room regions instead
             location[1] += self._camera_height
             in_region = np.logical_and(
-                np.all(location > self._regions[0, ...], axis=1), np.all(location < self._regions[1, ...], axis=1)
+                np.all(location > self._regions[0, ...], axis=1),
+                np.all(location < self._regions[1, ...], axis=1),
             )
             new_regions = np.where(in_region)[0]
             if len(new_regions) > 0:
@@ -267,7 +288,9 @@ class ExplorationRLEnv(FormattedRLEnv):
             region_sizes = np.array([region.aabb.sizes for region in regions]) / 2
             region_sizes = np.maximum(region_sizes, region_size_padding)
             region_centers = np.array([region.aabb.center for region in regions])
-            self._regions = np.array([region_centers - region_sizes, region_centers + region_sizes])
+            self._regions = np.array(
+                [region_centers - region_sizes, region_centers + region_sizes]
+            )
         self._check_grid_cell()
         return obs
 
@@ -278,7 +301,10 @@ class ExplorationRLEnv(FormattedRLEnv):
         return obs, reward, done, info
 
     def get_reward_range(self):
-        return self._slack_reward + self._collision_reward, self._slack_reward + self._new_grid_cell_reward
+        return (
+            self._slack_reward + self._collision_reward,
+            self._slack_reward + self._new_grid_cell_reward,
+        )
 
     def get_reward(self, observations: Observations) -> Any:
         reward = super(ExplorationRLEnv, self).get_reward(observations)
@@ -304,7 +330,9 @@ class ExplorationRLEnv(FormattedRLEnv):
         grid = np.zeros((maxes - mins + 2 * padding + 1), dtype=np.uint8)
         # Mark the visited ones
         visited_cells = visited_cells + padding - mins
-        np.ravel(grid)[np.ravel_multi_index(visited_cells.T, grid.shape, mode="clip")] = 1
+        np.ravel(grid)[
+            np.ravel_multi_index(visited_cells.T, grid.shape, mode="clip")
+        ] = 1
         grid = np.rot90(grid, 2)
         return grid
 
@@ -325,7 +353,9 @@ class RunAwayRLEnv(FormattedRLEnv):
 
     def _get_distance(self):
         current_position = self.habitat_env.sim.get_agent_state().position
-        distance = self.habitat_env.sim.geodesic_distance(current_position, self._start_position)
+        distance = self.habitat_env.sim.geodesic_distance(
+            current_position, self._start_position
+        )
         return distance
 
     def format_observations(self, obs, done=False):
@@ -348,7 +378,10 @@ class RunAwayRLEnv(FormattedRLEnv):
         return obs, reward, done, info
 
     def get_reward_range(self):
-        return self._slack_reward + self._collision_reward - self._step_size, self._slack_reward + self._step_size
+        return (
+            self._slack_reward + self._collision_reward - self._step_size,
+            self._slack_reward + self._step_size,
+        )
 
     def get_reward(self, observations: Observations) -> Any:
         reward = super(RunAwayRLEnv, self).get_reward(observations)

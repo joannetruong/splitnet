@@ -8,7 +8,12 @@ from habitat.config.default import get_config
 
 
 def get_dataset_config(
-    dataset_path, data_subset, max_episode_length, render_gpu_id, extra_task_sensors, extra_agent_sensors
+    dataset_path,
+    data_subset,
+    max_episode_length,
+    render_gpu_id,
+    extra_task_sensors,
+    extra_agent_sensors,
 ):
     config = get_config("configs/habitat_nav_task_config.yaml")
     config.defrost()
