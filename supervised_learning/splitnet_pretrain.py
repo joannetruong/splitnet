@@ -7,23 +7,23 @@
 import os
 import random
 
-import PIL
 import cv2
 import numpy as np
+import PIL
 import torch
 import torch.optim as optim
 import tqdm
-from dg_util.python_utils import drawing
-from dg_util.python_utils import misc_util
+from arguments import get_args
+from dataset_dump.create_rgb_dataset import RandomImageGenerator
+from dg_util.python_utils import drawing, misc_util
 from dg_util.python_utils import pytorch_util as pt_util
 from dg_util.python_utils import tensorboard_logger
+from networks import optimizers
+from networks.networks import ShallowVisualEncoder
 from torch.multiprocessing import set_start_method
 from torchvision import transforms
 
-from arguments import get_args
-from dataset_dump.create_rgb_dataset import RandomImageGenerator
-from networks import optimizers
-from networks.networks import ShallowVisualEncoder
+USE_SPOT = True
 
 args = get_args()
 
@@ -61,23 +61,53 @@ def draw_outputs(output, labels, mode):
         images = [
             labels_on["rgb"].transpose(1, 2, 0),
             255 - np.clip((labels_on["depth"] + 0.5).squeeze() * 255, 0, 255),
-            (np.clip(labels_on["surface_normals"] + 1, 0, 2) * 127).astype(np.uint8).transpose(1, 2, 0),
+            (np.clip(labels_on["surface_normals"] + 1, 0, 2) * 127)
+            .astype(np.uint8)
+            .transpose(1, 2, 0),
             labels_on["semantic"].squeeze().astype(np.uint8) if USE_SEMANTIC else None,
-            np.clip((output_on[:3] + 0.5) * 255, 0, 255).astype(np.uint8).transpose(1, 2, 0),
+            np.clip((output_on[:3] + 0.5) * 255, 0, 255)
+            .astype(np.uint8)
+            .transpose(1, 2, 0),
             255 - np.clip((output_on[3] + 0.5).squeeze() * 255, 0, 255),
-            (np.clip(output_on[4:7] + 1, 0, 2) * 127).astype(np.uint8).transpose(1, 2, 0),
+            (np.clip(output_on[4:7] + 1, 0, 2) * 127)
+            .astype(np.uint8)
+            .transpose(1, 2, 0),
             output_semantic.astype(np.uint8) if USE_SEMANTIC else None,
         ]
-        titles = ["rgb", "depth", "normals", "semantic", "rgb_pred", "depth_pred", "normals_pred", "semantic_pred"]
+        titles = [
+            "rgb",
+            "depth",
+            "normals",
+            "semantic",
+            "rgb_pred",
+            "depth_pred",
+            "normals_pred",
+            "semantic_pred",
+        ]
 
         image = drawing.subplot(
-            images, 2, 4, 256, 256, titles=titles, normalize=[False, False, False, True, False, False, False, True]
+            images,
+            2,
+            4,
+            256,
+            256,
+            titles=titles,
+            normalize=[False, False, False, True, False, False, False, True],
         )
         cv2.imshow("im_" + mode, image[:, :, ::-1])
         cv2.waitKey(0)
 
 
-def train_model(model, device, train_loader, optimizer, total_num_steps, logger, net_output_info, checkpoint_dir):
+def train_model(
+    model,
+    device,
+    train_loader,
+    optimizer,
+    total_num_steps,
+    logger,
+    net_output_info,
+    checkpoint_dir,
+):
     try:
         model.train()
         if args.tensorboard:
@@ -86,13 +116,19 @@ def train_model(model, device, train_loader, optimizer, total_num_steps, logger,
         for batch_idx in tqdm.tqdm(range(NUM_BATCHES_PER_EPOCH)):
             data = next(data_iter)
             labels = {key: val.to(device) for key, val in data.items()}
-            labels["surface_normals"] = pt_util.depth_to_surface_normals(labels["depth"])
+            labels["surface_normals"] = pt_util.depth_to_surface_normals(
+                labels["depth"]
+            )
             data = labels["rgb"].detach()
             _, output, class_pred = model.forward(data, True)
-            loss, loss_val, visual_loss_dict = optimizers.get_visual_loss(output, labels, net_output_info)
+            loss, loss_val, visual_loss_dict = optimizers.get_visual_loss(
+                output, labels, net_output_info
+            )
             object_loss = 0
             if "class_label" in labels:
-                object_loss = optimizers.get_object_existence_loss(class_pred, labels["class_label"])
+                object_loss = optimizers.get_object_existence_loss(
+                    class_pred, labels["class_label"]
+                )
                 loss = loss + object_loss
                 object_loss = object_loss.item()
             optimizer.zero_grad()
@@ -114,18 +150,24 @@ def train_model(model, device, train_loader, optimizer, total_num_steps, logger,
                     logger.network_variable_summary(model, total_num_steps)
 
         if args.save_checkpoints and not args.no_weight_update:
-            pt_util.save(model, checkpoint_dir, num_to_keep=5, iteration=total_num_steps)
+            pt_util.save(
+                model, checkpoint_dir, num_to_keep=5, iteration=total_num_steps
+            )
         return total_num_steps
     except Exception as e:
         import traceback
 
         traceback.print_exc()
         if args.save_checkpoints and not args.no_weight_update:
-            pt_util.save(model, checkpoint_dir, num_to_keep=-1, iteration=total_num_steps)
+            pt_util.save(
+                model, checkpoint_dir, num_to_keep=-1, iteration=total_num_steps
+            )
         raise e
 
 
-def evaluate_model(model, device, test_loader, total_num_steps, logger, net_output_info):
+def evaluate_model(
+    model, device, test_loader, total_num_steps, logger, net_output_info
+):
     model.eval()
     loss_val_total = 0
     object_loss_total = 0
@@ -137,13 +179,19 @@ def evaluate_model(model, device, test_loader, total_num_steps, logger, net_outp
             data = next(data_iter)
             n_its += 1
             labels = {key: val.to(device) for key, val in data.items()}
-            labels["surface_normals"] = pt_util.depth_to_surface_normals(labels["depth"])
+            labels["surface_normals"] = pt_util.depth_to_surface_normals(
+                labels["depth"]
+            )
             data = labels["rgb"]
-            _, output, class_pred = model.forward(data, True)
-            loss, loss_val, visual_loss_dict = optimizers.get_visual_loss(output, labels, net_output_info)
+            _, output, class_pred = model.forward(data, decoder_enabled=True)
+            loss, loss_val, visual_loss_dict = optimizers.get_visual_loss(
+                output, labels, net_output_info
+            )
             object_loss = 0
             if "class_label" in labels:
-                object_loss = optimizers.get_object_existence_loss(class_pred, labels["class_label"])
+                object_loss = optimizers.get_object_existence_loss(
+                    class_pred, labels["class_label"]
+                )
                 loss = loss + object_loss
                 object_loss = object_loss.item()
             if DEBUG:
@@ -200,7 +248,7 @@ class HabitatImageGenerator(torch.utils.data.Dataset):
         self.worker_id = worker_id
 
     def __len__(self):
-        return 2 ** 31
+        return 2**31
 
     def __getitem__(self, item):
         # Ignore the item and just generate an image
@@ -214,7 +262,7 @@ class HabitatImageGenerator(torch.utils.data.Dataset):
                 self.sensors,
             )
         data = self.image_generator.get_sample()
-        seed = np.random.randint(2 ** 32)
+        seed = np.random.randint(2**32)
         transformed_data = {}
         image = data["rgb"]
         depth = data["depth"]
@@ -265,18 +313,40 @@ def main():
     print(model)
 
     train_transforms = transforms.Compose(
-        [transforms.ToPILImage(), transforms.RandomHorizontalFlip(), transforms.RandomCrop(224)]
+        [
+            transforms.ToPILImage(),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(224),
+        ]
     )
 
     train_transforms_depth = transforms.Compose(
-        [PIL.Image.fromarray, transforms.RandomHorizontalFlip(), transforms.RandomCrop(224), np.array]
+        [
+            PIL.Image.fromarray,
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(224),
+            np.array,
+        ]
     )
 
     train_transforms_semantic = transforms.Compose(
-        [transforms.ToPILImage(), transforms.RandomHorizontalFlip(), transforms.RandomCrop(224)]
+        [
+            transforms.ToPILImage(),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(224),
+        ]
     )
-
-    sensors = ["RGB_SENSOR", "DEPTH_SENSOR"] + (["SEMANTIC_SENSOR"] if USE_SEMANTIC else [])
+    if USE_SPOT:
+        sensors = [
+            "SPOT_LEFT_RGB_SENSOR",
+            "SPOT_RIGHT_RGB_SENSOR",
+            "SPOT_LEFT_DEPTH_SENSOR",
+            "SPOT_RIGHT_DEPTH_SENSOR",
+        ] + (["SEMANTIC_SENSOR"] if USE_SEMANTIC else [])
+    else:
+        sensors = ["RGB_SENSOR", "DEPTH_SENSOR"] + (
+            ["SEMANTIC_SENSOR"] if USE_SEMANTIC else []
+        )
     if args.dataset == "mp3d":
         data_train = HabitatImageGenerator(
             render_gpus,
@@ -299,12 +369,12 @@ def main():
             images_before_reset=1000,
             sensors=sensors,
         )
-    elif args.dataset == "mp3d":
+    elif args.dataset == "hm3d":
         data_train = HabitatImageGenerator(
             render_gpus,
-            "mp3d",
+            "hm3d",
             args.data_subset,
-            "data/dumps/mp3d/{split}/dataset_one_ep_per_scene.json.gz",
+            "data/datasets/pointnav_hm3d_gibson/pointnav_spot_0.3/{split}/{split}.json.gz",
             images_before_reset=1000,
             sensors=sensors,
             transform=train_transforms,
@@ -317,7 +387,7 @@ def main():
             render_gpus,
             "mp3d",
             "val",
-            "data/dumps/mp3d/{split}/dataset_one_ep_per_scene.json.gz",
+            "data/datasets/pointnav_hm3d_gibson/pointnav_spot_0.3/{split}/{split}.json.gz",
             images_before_reset=1000,
             sensors=sensors,
         )
@@ -376,7 +446,9 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     start_iter = 0
     if args.load_model:
-        start_iter = pt_util.restore_from_folder(model, os.path.join(log_prefix, args.checkpoint_dirname, "*"))
+        start_iter = pt_util.restore_from_folder(
+            model, os.path.join(log_prefix, args.checkpoint_dirname, "*")
+        )
 
     train_logger = None
     test_logger = None
@@ -384,20 +456,38 @@ def main():
         train_logger = tensorboard_logger.Logger(
             os.path.join(log_prefix, args.tensorboard_dirname, time_str + "_train")
         )
-        test_logger = tensorboard_logger.Logger(os.path.join(log_prefix, args.tensorboard_dirname, time_str + "_test"))
+        test_logger = tensorboard_logger.Logger(
+            os.path.join(log_prefix, args.tensorboard_dirname, time_str + "_test")
+        )
 
     total_num_steps = start_iter
 
     if args.save_checkpoints and not args.no_weight_update:
         pt_util.save(model, checkpoint_dir, num_to_keep=5, iteration=total_num_steps)
 
-    evaluate_model(model, device, test_loader, total_num_steps, test_logger, decoder_output_info)
+    evaluate_model(
+        model, device, test_loader, total_num_steps, test_logger, decoder_output_info
+    )
 
     for epoch in range(0, EPOCHS + 1):
         total_num_steps = train_model(
-            model, device, train_loader, optimizer, total_num_steps, train_logger, decoder_output_info, checkpoint_dir
+            model,
+            device,
+            train_loader,
+            optimizer,
+            total_num_steps,
+            train_logger,
+            decoder_output_info,
+            checkpoint_dir,
         )
-        evaluate_model(model, device, test_loader, total_num_steps, test_logger, decoder_output_info)
+        evaluate_model(
+            model,
+            device,
+            test_loader,
+            total_num_steps,
+            test_logger,
+            decoder_output_info,
+        )
 
 
 if __name__ == "__main__":

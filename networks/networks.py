@@ -13,9 +13,9 @@ import torchvision.models as models
 from a2c_ppo_acktr import model
 from a2c_ppo_acktr.utils import init
 from dg_util.python_utils import pytorch_util as pt_util
+from networks.building_blocks import (Bridge, ConvBlock,
+                                      ShallowUpBlockForHourglassNet)
 from torch import nn
-
-from networks.building_blocks import ConvBlock, Bridge, ShallowUpBlockForHourglassNet
 
 
 class EncoderDecoderInterface(nn.Module, ABC):
@@ -88,7 +88,6 @@ class BaseEncoderDecoder(EncoderDecoderInterface, ABC):
     def forward(self, x, decoder_enabled):
         x = self.input_transform(x)
         deepest_visual_features = self.encoder(x)
-
         # decoder Part
         decoder_outputs = None
         class_pred = None

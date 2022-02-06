@@ -12,7 +12,8 @@ import habitat
 import tqdm
 from habitat.config.default import get_config
 from habitat.core.dataset import Dataset
-from habitat.datasets.pointnav import generator  # TODO generator isn't a thing anymore. See if anyone notices.
+# TODO generator isn't a thing anymore. See if anyone notices.
+from habitat.datasets.pointnav import generator
 from habitat.tasks.nav.nav_task import NavigationEpisode, NavigationGoal
 
 DEBUG = False
@@ -89,7 +90,9 @@ for ii, house in enumerate(scenes):
 dataset = Dataset()
 dataset.episodes = episodes
 json = dataset.to_json().encode("utf-8")
-with gzip.GzipFile(os.path.join(OUTPUT_PATH, "dataset_one_ep_per_scene.json.gz"), "w") as fout:
+with gzip.GzipFile(
+    os.path.join(OUTPUT_PATH, "dataset_one_ep_per_scene.json.gz"), "w"
+) as fout:
     fout.write(json)
 
 

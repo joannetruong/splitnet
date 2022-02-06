@@ -7,15 +7,20 @@
 import gzip
 import os
 import random
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
+import cv2
 import habitat
 import habitat.datasets.pointnav.pointnav_dataset as mp3d_dataset
 import numpy as np
 from habitat.config.default import get_config
 from habitat.datasets import make_dataset
 
-CFG = "configs/habitat_nav_task_config.yaml"
+USE_SPOT = True
+if USE_SPOT:
+    CFG = "/coc/testnvme/jtruong33/google_nav/habitat-lab/configs/tasks/pvp_spotnav_hm3d.yaml"
+else:
+    CFG = "configs/habitat_nav_task_config.yaml"
 
 
 def make_config(gpu_id, split, data_path, sensors, resolution):
@@ -24,19 +29,21 @@ def make_config(gpu_id, split, data_path, sensors, resolution):
     config.TASK.NAME = "Nav-v0"
     config.TASK.MEASUREMENTS = []
     config.DATASET.SPLIT = split
-    config.DATASET.POINTNAVV1.DATA_PATH = data_path
+    config.DATASET.DATA_PATH = data_path
     config.HEIGHT = resolution
     config.WIDTH = resolution
-    for sensor in sensors:
-        config.SIMULATOR[sensor]["HEIGHT"] = resolution
-        config.SIMULATOR[sensor]["WIDTH"] = resolution
-        config.SIMULATOR[sensor]["POSITION"] = [0, 1.09, 0]
-        config.SIMULATOR[sensor]["HFOV"] = 45
+
+    # for sensor in sensors:
+    #     config.SIMULATOR[sensor]["HEIGHT"] = resolution
+    #     config.SIMULATOR[sensor]["WIDTH"] = resolution
+    #     config.SIMULATOR[sensor]["POSITION"] = [0, 1.09, 0]
+    #     config.SIMULATOR[sensor]["HFOV"] = 45
 
     config.TASK.HEIGHT = resolution
     config.TASK.WIDTH = resolution
     config.SIMULATOR.AGENT_0.SENSORS = sensors
-    config.ENVIRONMENT.MAX_EPISODE_STEPS = 2 ** 32
+
+    config.ENVIRONMENT.MAX_EPISODE_STEPS = 2**32
     config.SIMULATOR.HABITAT_SIM_V0.GPU_DEVICE_ID = gpu_id
     return config
 
@@ -53,10 +60,20 @@ class RandomImageGenerator(object):
         resolution: Optional[int] = 256,
     ) -> None:
         if sensors is None:
-            sensors = ["RGB_SENSOR", "DEPTH_SENSOR"]
+            if USE_SPOT:
+                sensors = [
+                    "SPOT_LEFT_RGB_SENSOR",
+                    "SPOT_RIGHT_RGB_SENSOR",
+                    "SPOT_LEFT_DEPTH_SENSOR",
+                    "SPOT_RIGHT_DEPTH_SENSOR",
+                ]
+            else:
+                sensors = ["RGB_SENSOR", "DEPTH_SENSOR"]
         self.images_before_reset = images_before_reset
         config = make_config(gpu_id, split, data_path, sensors, resolution)
-        data_dir = os.path.join("data/scene_episodes/", unique_dataset_name + "_" + split)
+        data_dir = os.path.join(
+            "data/scene_episodes/", unique_dataset_name + "_" + split
+        )
         self.dataset_name = config.DATASET.TYPE
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
@@ -88,6 +105,7 @@ class RandomImageGenerator(object):
             config.TASK.CLASS_SEGMENTATION_SENSOR.WIDTH = config.TASK.WIDTH
 
         config.freeze()
+        print("DATASET: ", dataset)
         self.env = habitat.Env(config=config, dataset=dataset)
         random.shuffle(self.env.episodes)
         self.num_samples = 0
@@ -107,16 +125,40 @@ class RandomImageGenerator(object):
         rand_angle = np.random.uniform(0, 2 * np.pi)
         rand_rotation = [0, np.sin(rand_angle / 2), 0, np.cos(rand_angle / 2)]
         self.env.sim.set_agent_state(rand_location, rand_rotation)
-        obs = self.env.sim._sensor_suite.get_observations(self.env.sim._sim.get_sensor_observations())
+        obs = self.env.sim._sensor_suite.get_observations(
+            self.env.sim.get_sensor_observations()
+        )
 
         class_semantic = None
         if "semantic" in obs:
             # Currently unused
             semantic = obs["semantic"]
-            class_semantic = self.env.sim.scene_obj_id_to_semantic_class[semantic].astype(np.int32)
+            class_semantic = self.env.sim.scene_obj_id_to_semantic_class[
+                semantic
+            ].astype(np.int32)
+        if USE_SPOT:
+            img = np.concatenate(
+                [
+                    # Spot is cross-eyed; right is on the left on the FOV
+                    obs["spot_right_rgb"][:, :, :3],
+                    obs["spot_left_rgb"][:, :, :3],
+                ],
+                axis=1,
+            )
+            img = cv2.resize(img, (256, 256))
 
-        img = obs["rgb"][:, :, :3]
-        depth = obs["depth"].squeeze()
+            depth = np.concatenate(
+                [
+                    # Spot is cross-eyed; right is on the left on the FOV
+                    obs["spot_right_depth"],
+                    obs["spot_left_depth"],
+                ],
+                axis=1,
+            ).squeeze()
+            depth = cv2.resize(depth, (256, 256))
+        else:
+            img = obs["rgb"][:, :, :3]
+            depth = obs["depth"].squeeze()
 
         self.num_samples += 1
         return {"rgb": img, "depth": depth, "class_semantic": class_semantic}
