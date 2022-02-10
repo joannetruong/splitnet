@@ -17,8 +17,12 @@ from habitat.config.default import get_config
 from habitat.datasets import make_dataset
 
 USE_SPOT = True
+USE_GRAY = True
 if USE_SPOT:
-    CFG = "/coc/testnvme/jtruong33/google_nav/habitat-lab/configs/tasks/pvp_spotnav_hm3d.yaml"
+    if USE_GRAY:
+        CFG = "/coc/testnvme/jtruong33/google_nav/habitat-lab/configs/tasks/outdoor_spotnav_hm3d.yaml"
+    else:
+        CFG = "/coc/testnvme/jtruong33/google_nav/habitat-lab/configs/tasks/pvp_spotnav_hm3d.yaml"
 else:
     CFG = "configs/habitat_nav_task_config.yaml"
 
@@ -61,12 +65,20 @@ class RandomImageGenerator(object):
     ) -> None:
         if sensors is None:
             if USE_SPOT:
-                sensors = [
-                    "SPOT_LEFT_RGB_SENSOR",
-                    "SPOT_RIGHT_RGB_SENSOR",
-                    "SPOT_LEFT_DEPTH_SENSOR",
-                    "SPOT_RIGHT_DEPTH_SENSOR",
-                ]
+                if USE_GRAY:
+                    sensors = [
+                        "SPOT_LEFT_GRAY_SENSOR",
+                        "SPOT_RIGHT_GRAY_SENSOR",
+                        "SPOT_LEFT_DEPTH_SENSOR",
+                        "SPOT_RIGHT_DEPTH_SENSOR",
+                    ]
+                else:
+                    sensors = [
+                        "SPOT_LEFT_RGB_SENSOR",
+                        "SPOT_RIGHT_RGB_SENSOR",
+                        "SPOT_LEFT_DEPTH_SENSOR",
+                        "SPOT_RIGHT_DEPTH_SENSOR",
+                    ]
             else:
                 sensors = ["RGB_SENSOR", "DEPTH_SENSOR"]
         self.images_before_reset = images_before_reset
@@ -76,8 +88,8 @@ class RandomImageGenerator(object):
         )
         self.dataset_name = config.DATASET.TYPE
         if not os.path.exists(data_dir):
-            os.makedirs(data_dir)
-        data_path = os.path.join(data_dir, "dataset_one_ep_per_scene.json.gz")
+            os.makedirs(data_dir, exist_ok=True)
+        data_path = os.path.join(data_dir, "dataset_one_ep_per_scene_v2.json.gz")
         # Creates a dataset where each episode is a random spawn point in each scene.
         if not os.path.exists(data_path):
             dataset = make_dataset(config.DATASET.TYPE, config=config.DATASET)
@@ -95,11 +107,12 @@ class RandomImageGenerator(object):
                 with gzip.GzipFile(data_path, "w") as fout:
                     fout.write(json)
         dataset = mp3d_dataset.PointNavDatasetV1()
+        print("dataset: ", dataset)
         with gzip.open(data_path, "rt") as f:
             dataset.from_json(f.read())
 
         config.TASK.SENSORS = ["POINTGOAL_SENSOR"]
-        if "SEMANTIC_SESNOR" in sensors:
+        if "SEMANTIC_SENSOR" in sensors:
             config.TASK.SENSOR.append("CLASS_SEGMENTATION_SENSOR")
             config.TASK.CLASS_SEGMENTATION_SENSOR.HEIGHT = config.TASK.HEIGHT
             config.TASK.CLASS_SEGMENTATION_SENSOR.WIDTH = config.TASK.WIDTH
@@ -137,16 +150,27 @@ class RandomImageGenerator(object):
                 semantic
             ].astype(np.int32)
         if USE_SPOT:
-            img = np.concatenate(
-                [
-                    # Spot is cross-eyed; right is on the left on the FOV
-                    obs["spot_right_rgb"][:, :, :3],
-                    obs["spot_left_rgb"][:, :, :3],
-                ],
-                axis=1,
-            )
-            img = cv2.resize(img, (256, 256))
-
+            if USE_GRAY:
+                img = np.concatenate(
+                    [
+                        # Spot is cross-eyed; right is on the left on the FOV
+                        obs["spot_right_gray"][:, :, :],
+                        obs["spot_left_gray"][:, :, :],
+                    ],
+                    axis=1,
+                )
+                img = cv2.resize(img, (256, 256))
+                img = img.reshape([*img.shape[:2], 1])
+            else:
+                img = np.concatenate(
+                    [
+                        # Spot is cross-eyed; right is on the left on the FOV
+                        obs["spot_right_rgb"][:, :, :3],
+                        obs["spot_left_rgb"][:, :, :3],
+                    ],
+                    axis=1,
+                )
+                img = cv2.resize(img, (256, 256))
             depth = np.concatenate(
                 [
                     # Spot is cross-eyed; right is on the left on the FOV

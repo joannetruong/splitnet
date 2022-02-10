@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 from a2c_ppo_acktr.utils import update_linear_schedule
 from base_habitat_rl_runner import ACTION_SPACE, SIM_ACTION_TO_NAME
-from dg_util.python_utils import
+from dg_util.python_utils import drawing
 from dg_util.python_utils import pytorch_util as pt_util
 from dg_util.python_utils import tensorboard_logger
 from eval_splitnet import REWARD_SCALAR, HabitatRLEvalRunner
@@ -441,7 +441,8 @@ class HabitatRLTrainAndEvalRunner(HabitatRLEvalRunner):
                                             "total_steps_%d.png" % total_num_steps,
                                         )
                                         import imageio
-                                        from habitat.utils.visualizations import maps
+                                        from habitat.utils.visualizations import \
+                                            maps
 
                                         top_down_map = maps.colorize_topdown_map(
                                             infos[0]["top_down_map"]["map"]

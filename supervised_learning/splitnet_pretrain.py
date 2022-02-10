@@ -24,11 +24,12 @@ from torch.multiprocessing import set_start_method
 from torchvision import transforms
 
 USE_SPOT = True
+USE_GRAY = True
 
 args = get_args()
 
 TEST_BATCH_SIZE = 64
-EPOCHS = 200
+EPOCHS = 1000
 BATCH_SIZE = 32
 NUM_CLASSES = 41
 
@@ -270,6 +271,8 @@ class HabitatImageGenerator(torch.utils.data.Dataset):
             random.seed(seed)
             image = self.transform(data["rgb"])
         image = np.asarray(image)
+        if len(image.shape) == 2:
+            image = image.reshape([*image.shape[:2], 1])
         transformed_data["rgb"] = pt_util.from_numpy(image.transpose(2, 0, 1))
         if self.depth_transform is not None:
             random.seed(seed)
@@ -300,11 +303,22 @@ def main():
     render_gpus = [int(gpu_id.strip()) for gpu_id in args.render_gpu_ids.split(",")]
     device = "cuda:" + str(torch_devices[0])
 
-    decoder_output_info = [("reconstruction", 3), ("depth", 1), ("surface_normals", 3)]
+    if USE_GRAY:
+        decoder_output_info = [
+            ("reconstruction", 1),
+            ("depth", 1),
+            ("surface_normals", 1),
+        ]
+    else:
+        decoder_output_info = [
+            ("reconstruction", 3),
+            ("depth", 1),
+            ("surface_normals", 3),
+        ]
     if USE_SEMANTIC:
         decoder_output_info.append(("semantic", 41))
 
-    model = ShallowVisualEncoder(decoder_output_info)
+    model = ShallowVisualEncoder(decoder_output_info, use_gray=USE_GRAY)
     model = pt_util.get_data_parallel(model, torch_devices)
     model = pt_util.DummyScope(model, ["base", "visual_encoder"])
     model.to(device)
@@ -337,22 +351,32 @@ def main():
         ]
     )
     if USE_SPOT:
-        sensors = [
-            "SPOT_LEFT_RGB_SENSOR",
-            "SPOT_RIGHT_RGB_SENSOR",
-            "SPOT_LEFT_DEPTH_SENSOR",
-            "SPOT_RIGHT_DEPTH_SENSOR",
-        ] + (["SEMANTIC_SENSOR"] if USE_SEMANTIC else [])
+        if USE_GRAY:
+            sensors = [
+                "SPOT_LEFT_GRAY_SENSOR",
+                "SPOT_RIGHT_GRAY_SENSOR",
+                "SPOT_LEFT_DEPTH_SENSOR",
+                "SPOT_RIGHT_DEPTH_SENSOR",
+            ]
+        else:
+            sensors = [
+                "SPOT_LEFT_RGB_SENSOR",
+                "SPOT_RIGHT_RGB_SENSOR",
+                "SPOT_LEFT_DEPTH_SENSOR",
+                "SPOT_RIGHT_DEPTH_SENSOR",
+            ]
+        sensors += ["SEMANTIC_SENSOR"] if USE_SEMANTIC else []
     else:
         sensors = ["RGB_SENSOR", "DEPTH_SENSOR"] + (
             ["SEMANTIC_SENSOR"] if USE_SEMANTIC else []
         )
     if args.dataset == "mp3d":
+        mp3d_json_gzs = "data/dumps/mp3d/{split}/dataset_one_ep_per_scene.json.gz"
         data_train = HabitatImageGenerator(
             render_gpus,
-            "mp3d",
+            args.dataset,
             args.data_subset,
-            "data/dumps/mp3d/{split}/dataset_one_ep_per_scene.json.gz",
+            mp3d_json_gzs,
             images_before_reset=1000,
             sensors=sensors,
             transform=train_transforms,
@@ -363,18 +387,19 @@ def main():
 
         data_test = HabitatImageGenerator(
             render_gpus,
-            "mp3d",
+            args.dataset,
             "val",
-            "data/dumps/mp3d/{split}/dataset_one_ep_per_scene.json.gz",
+            mp3d_json_gzs,
             images_before_reset=1000,
             sensors=sensors,
         )
     elif args.dataset == "hm3d":
+        hm3d_json_gzs = "data/datasets/pointnav_hm3d_gibson/pointnav_spot_0.3/{split}/{split}.json.gz"
         data_train = HabitatImageGenerator(
             render_gpus,
-            "hm3d",
+            args.dataset,
             args.data_subset,
-            "data/datasets/pointnav_hm3d_gibson/pointnav_spot_0.3/{split}/{split}.json.gz",
+            hm3d_json_gzs,
             images_before_reset=1000,
             sensors=sensors,
             transform=train_transforms,
@@ -385,18 +410,19 @@ def main():
 
         data_test = HabitatImageGenerator(
             render_gpus,
-            "mp3d",
+            args.dataset,
             "val",
-            "data/datasets/pointnav_hm3d_gibson/pointnav_spot_0.3/{split}/{split}.json.gz",
+            hm3d_json_gzs,
             images_before_reset=1000,
             sensors=sensors,
         )
     elif args.dataset == "gibson":
+        gibson_json_gzs = "data/datasets/pointnav/gibson/v1/{split}/{split}.json.gz"
         data_train = HabitatImageGenerator(
             render_gpus,
-            "gibson",
+            args.dataset,
             args.data_subset,
-            "data/datasets/pointnav/gibson/v1/{split}/{split}.json.gz",
+            gibson_json_gzs,
             images_before_reset=1000,
             sensors=sensors,
             transform=train_transforms,
@@ -407,9 +433,9 @@ def main():
 
         data_test = HabitatImageGenerator(
             render_gpus,
-            "gibson",
+            args.dataset,
             "val",
-            "data/datasets/pointnav/gibson/v1/{split}/{split}.json.gz",
+            gibson_json_gzs,
             images_before_reset=1000,
             sensors=sensors,
         )
@@ -445,10 +471,10 @@ def main():
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
     start_iter = 0
-    if args.load_model:
-        start_iter = pt_util.restore_from_folder(
-            model, os.path.join(log_prefix, args.checkpoint_dirname, "*")
-        )
+    # if args.load_model:
+    #     start_iter = pt_util.restore_from_folder(
+    #         model, os.path.join(log_prefix, args.checkpoint_dirname, "*")
+    #     )
 
     train_logger = None
     test_logger = None

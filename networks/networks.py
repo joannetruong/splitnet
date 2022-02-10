@@ -13,8 +13,7 @@ import torchvision.models as models
 from a2c_ppo_acktr import model
 from a2c_ppo_acktr.utils import init
 from dg_util.python_utils import pytorch_util as pt_util
-from networks.building_blocks import (Bridge, ConvBlock,
-                                      ShallowUpBlockForHourglassNet)
+from networks.building_blocks import Bridge, ConvBlock, ShallowUpBlockForHourglassNet
 from torch import nn
 
 
@@ -106,13 +105,19 @@ class BaseEncoderDecoder(EncoderDecoderInterface, ABC):
 
 
 class ShallowVisualEncoder(BaseEncoderDecoder):
-    def __init__(self, decoder_output_info, create_decoder=True):
+    def __init__(self, decoder_output_info, create_decoder=True, use_gray=False):
+        self.use_gray = use_gray
         super(ShallowVisualEncoder, self).__init__(decoder_output_info, create_decoder)
 
     def construct_encoder(self):
+        in_channels = 1 if self.use_gray else 3
         self.encoder = nn.Sequential(
             ConvBlock(
-                in_channels=3, out_channels=32, padding=3, kernel_size=7, stride=4
+                in_channels=in_channels,
+                out_channels=32,
+                padding=3,
+                kernel_size=7,
+                stride=4,
             ),
             ConvBlock(
                 in_channels=32, out_channels=64, kernel_size=3, stride=1, padding=1
