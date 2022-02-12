@@ -307,7 +307,7 @@ def main():
         decoder_output_info = [
             ("reconstruction", 1),
             ("depth", 1),
-            ("surface_normals", 1),
+            ("surface_normals", 3),
         ]
     else:
         decoder_output_info = [

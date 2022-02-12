@@ -1,7 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=splitnet_visual
-#SBATCH --output=logs/splitnet.out
-#SBATCH --error=logs/splitnet.err
+#SBATCH --job-name=splitnet_visual_gray
+#SBATCH --output=logs/splitnet_gray.out
+#SBATCH --error=logs/splitnet_gray.err
 #SBATCH --gres gpu:1
 #SBATCH --nodes 1
 #SBATCH --cpus-per-task 7

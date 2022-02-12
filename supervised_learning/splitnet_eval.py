@@ -47,6 +47,7 @@ USE_SEMANTIC = False
 
 def draw_outputs(output, labels, mode, checkpoint_dir, count):
     print("!!!!!!!!!!!!!!!! DRAW OUTPUTS !!!!!!!!!!!!!!!!")
+
     output[:, 4:7] = output[:, 4:7] / output[:, 4:7].norm(dim=1, keepdim=True)
     output = pt_util.to_numpy(output)
     labels = {key: pt_util.to_numpy(val) for key, val in labels.items()}
@@ -71,7 +72,8 @@ def draw_outputs(output, labels, mode, checkpoint_dir, count):
             .astype(np.uint8)
             .transpose(1, 2, 0)
         )
-        label_rgb_3 = np.concatenate((label_rgb, label_rgb, label_rgb), axis=2)
+        if USE_GRAY:
+            label_rgb_3 = np.concatenate((label_rgb, label_rgb, label_rgb), axis=2)
         label_depth_3 = np.concatenate((label_depth, label_depth, label_depth), axis=2)
         labels_img = np.hstack([label_rgb_3, label_depth_3, label_surface_normal])
         output_rgb = (
@@ -86,8 +88,8 @@ def draw_outputs(output, labels, mode, checkpoint_dir, count):
             (np.clip(output_on[2:] + 1, 0, 2) * 127).astype(np.uint8).transpose(1, 2, 0)
         )
         output_depth = output_depth.reshape([*output_depth.shape[:2], 1])
-
-        output_rgb_3 = np.concatenate((output_rgb, output_rgb, output_rgb), axis=2)
+        if USE_GRAY:
+            output_rgb_3 = np.concatenate((output_rgb, output_rgb, output_rgb), axis=2)
         output_depth_3 = np.concatenate(
             (output_depth, output_depth, output_depth), axis=2
         )
@@ -269,14 +271,15 @@ class HabitatImageGenerator(torch.utils.data.Dataset):
         transformed_data = {}
         image = data["rgb"]
         depth = data["depth"]
+
         if self.transform is not None:
             random.seed(seed)
             image = self.transform(data["rgb"])
+
         image = np.asarray(image)
-        if USE_GRAY:
-            transformed_data["rgb"] = image.reshape([1, *image.shape[:2]])
-        else:
-            transformed_data["rgb"] = pt_util.from_numpy(image.transpose(2, 0, 1))
+        if len(image.shape) == 2:
+            image = image.reshape([*image.shape[:2], 1])
+        transformed_data["rgb"] = pt_util.from_numpy(image.transpose(2, 0, 1))
         if self.depth_transform is not None:
             random.seed(seed)
             depth = self.depth_transform(depth)

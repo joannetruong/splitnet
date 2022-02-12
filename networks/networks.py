@@ -13,7 +13,8 @@ import torchvision.models as models
 from a2c_ppo_acktr import model
 from a2c_ppo_acktr.utils import init
 from dg_util.python_utils import pytorch_util as pt_util
-from networks.building_blocks import Bridge, ConvBlock, ShallowUpBlockForHourglassNet
+from networks.building_blocks import (Bridge, ConvBlock,
+                                      ShallowUpBlockForHourglassNet)
 from torch import nn
 
 
