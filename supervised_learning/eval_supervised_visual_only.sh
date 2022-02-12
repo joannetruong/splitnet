@@ -20,7 +20,7 @@ cp "$(readlink -f $0)" ${LOG_LOCATION}
 
 #CHECKPOINT_DIRNAME="/coc/testnvme/jtruong33/google_nav/splitnet/output_files/hm3d/splitnet_pretrain/checkpoints/2022_02_05_23_49_41/"
 #CHECKPOINT_DIRNAME="/coc/testnvme/jtruong33/google_nav/splitnet/output_files/hm3d/splitnet_pretrain/checkpoints/2022_02_07_18_50_09"
-CHECKPOINT_DIRNAME="/coc/testnvme/jtruong33/google_nav/splitnet/output_files/hm3d/splitnet_pretrain/checkpoints/2022_02_10_15_07_49"
+CHECKPOINT_DIRNAME="/coc/testnvme/jtruong33/google_nav/splitnet/output_files/hm3d/splitnet_pretrain/checkpoints/2022_02_11_15_13_37"
 python supervised_learning/splitnet_eval.py \
     --encoder-network-type ShallowVisualEncoder \
     --log-prefix ${LOG_LOCATION} \
