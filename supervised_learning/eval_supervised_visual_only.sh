@@ -4,7 +4,7 @@
 # This source code is licensed under the Creative Commons license found in the
 # LICENSE file in the root directory of this source tree.
 
-DATASET="gibson"
+DATASET="hm3d"
 
 export GLOG_minloglevel=2
 export OMP_NUM_THREADS=4
@@ -20,7 +20,7 @@ cp "$(readlink -f $0)" ${LOG_LOCATION}
 
 #CHECKPOINT_DIRNAME="/coc/testnvme/jtruong33/google_nav/splitnet/output_files/hm3d/splitnet_pretrain/checkpoints/2022_02_05_23_49_41/"
 #CHECKPOINT_DIRNAME="/coc/testnvme/jtruong33/google_nav/splitnet/output_files/hm3d/splitnet_pretrain/checkpoints/2022_02_07_18_50_09"
-CHECKPOINT_DIRNAME="/coc/testnvme/jtruong33/google_nav/splitnet/output_files/hm3d/splitnet_pretrain/checkpoints/2022_02_11_15_13_37"
+CHECKPOINT_DIRNAME="/coc/testnvme/jtruong33/google_nav/splitnet/output_files/hm3d/splitnet_pretrain/checkpoints/2022_02_11_22_34_05"
 python supervised_learning/splitnet_eval.py \
     --encoder-network-type ShallowVisualEncoder \
     --log-prefix ${LOG_LOCATION} \

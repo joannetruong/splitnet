@@ -45,10 +45,10 @@ USE_SEMANTIC = False
 # TEST_BATCH_SIZE = 4
 
 
-def draw_outputs(output, labels, mode, checkpoint_dir, count):
+def draw_outputs(output, labels, mode, checkpoint_dir, count, dataset):
     print("!!!!!!!!!!!!!!!! DRAW OUTPUTS !!!!!!!!!!!!!!!!")
 
-    output[:, 4:7] = output[:, 4:7] / output[:, 4:7].norm(dim=1, keepdim=True)
+    output[:, 2:] = output[:, 2:] / output[:, 2:].norm(dim=1, keepdim=True)
     output = pt_util.to_numpy(output)
     labels = {key: pt_util.to_numpy(val) for key, val in labels.items()}
     if USE_SEMANTIC:
@@ -65,17 +65,17 @@ def draw_outputs(output, labels, mode, checkpoint_dir, count):
 
         # print("!!! LABELS_ON: ", labels_on["rgb"].shape)
         label_rgb = labels_on["rgb"].transpose(1, 2, 0)
-        label_depth = 255 - np.clip((labels_on["depth"] + 0.5).squeeze() * 255, 0, 255)
-        label_depth = label_depth.reshape([*label_depth.shape[:2], 1])
-        label_surface_normal = (
-            (np.clip(labels_on["surface_normals"] + 1, 0, 2) * 127)
-            .astype(np.uint8)
-            .transpose(1, 2, 0)
-        )
+        # label_depth = 255 - np.clip((labels_on["depth"] + 0.5).squeeze() * 255, 0, 255)
+        # label_depth = label_depth.reshape([*label_depth.shape[:2], 1])
+        # label_surface_normal = (
+        #     (np.clip(labels_on["surface_normals"] + 1, 0, 2) * 127)
+        #     .astype(np.uint8)
+        #     .transpose(1, 2, 0)
+        # )
         if USE_GRAY:
             label_rgb_3 = np.concatenate((label_rgb, label_rgb, label_rgb), axis=2)
-        label_depth_3 = np.concatenate((label_depth, label_depth, label_depth), axis=2)
-        labels_img = np.hstack([label_rgb_3, label_depth_3, label_surface_normal])
+        # label_depth_3 = np.concatenate((label_depth, label_depth, label_depth), axis=2)
+        # labels_img = np.hstack([label_rgb_3, label_depth_3, label_surface_normal])
         output_rgb = (
             np.clip(
                 (output_on[0].reshape([1, *output_on[0].shape[:2]]) + 0.5) * 255, 0, 255
@@ -83,24 +83,58 @@ def draw_outputs(output, labels, mode, checkpoint_dir, count):
             .astype(np.uint8)
             .transpose(1, 2, 0)
         )
-        output_depth = 255 - np.clip((output_on[1] + 0.5).squeeze() * 255, 0, 255)
-        output_surface_normal = (
-            (np.clip(output_on[2:] + 1, 0, 2) * 127).astype(np.uint8).transpose(1, 2, 0)
+        # output_depth = 255 - np.clip((output_on[1] + 0.5).squeeze() * 255, 0, 255)
+        # # output_depth = output_depth.reshape([*output_depth.shape[:2], 1])
+        # output_surface_normal = (
+        #     (np.clip(output_on[2:] + 1, 0, 2) * 127).astype(np.uint8).transpose(1, 2, 0)
+        # )
+        # if USE_GRAY:
+        #     output_rgb_3 = np.concatenate((output_rgb, output_rgb, output_rgb), axis=2)
+        # print(output_depth.shape)
+        # output_depth_cj = cv2.applyColorMap(output_depth, cv2.COLORMAP_JET)[:, :, ::-1]
+        # print(output_depth_cj.shape)
+        # output_depth_3 = np.concatenate(
+        #     (output_depth_cj, output_depth_cj, output_depth_cj), axis=2
+        # )
+        #
+        # outputs = np.hstack([output_rgb_3, output_depth_3, output_surface_normal])
+        # all = np.vstack((labels_img, outputs))
+
+        images = [
+            255 - np.clip((labels_on["depth"] + 0.5).squeeze() * 255, 0, 255),
+            (np.clip(labels_on["surface_normals"] + 1, 0, 2) * 127)
+            .astype(np.uint8)
+            .transpose(1, 2, 0),
+            255 - np.clip((output_on[1] + 0.5).squeeze() * 255, 0, 255),
+            (np.clip(output_on[2:] + 1, 0, 2) * 127)
+            .astype(np.uint8)
+            .transpose(1, 2, 0),
+        ]
+        titles = [
+            "depth",
+            "normals",
+            "depth_pred",
+            "normals_pred",
+        ]
+
+        image = drawing.subplot(
+            images,
+            2,
+            2,
+            256,
+            256,
+            titles=titles,
+            normalize=[False, False, False, False],
         )
-        output_depth = output_depth.reshape([*output_depth.shape[:2], 1])
-        if USE_GRAY:
-            output_rgb_3 = np.concatenate((output_rgb, output_rgb, output_rgb), axis=2)
-        output_depth_3 = np.concatenate(
-            (output_depth, output_depth, output_depth), axis=2
-        )
-        outputs = np.hstack([output_rgb_3, output_depth_3, output_surface_normal])
-        all = np.vstack((labels_img, outputs))
-        save_dir = os.path.join(checkpoint_dir, "debug_imgs_gray")
+        image_rgb = np.vstack((label_rgb, output_rgb))
+        image_rgb_3 = np.concatenate((image_rgb, image_rgb, image_rgb), axis=2)
+        all = np.concatenate((image_rgb_3, image), axis=1)
+
+        save_dir = os.path.join(checkpoint_dir, "debug_imgs_gray_train_" + dataset)
         os.makedirs(save_dir, exist_ok=True)
-        img_pth = os.path.join(save_dir, "im_" + mode + "_" + str(count) + ".png")
-        cv2.imwrite(img_pth, all)
-        # cv2.imshow("im_" + mode, image[:, :, ::-1])
-        # cv2.waitKey(0)
+        all_pth = os.path.join(save_dir, "all_" + mode + "_" + str(count) + ".png")
+
+        cv2.imwrite(all_pth, all)
 
 
 def train_model(
@@ -200,7 +234,9 @@ def evaluate_model(
                 loss = loss + object_loss
                 object_loss = object_loss.item()
             if DEBUG:
-                draw_outputs(output, labels, "eval", checkpoint_dir, n_its)
+                draw_outputs(
+                    output, labels, "eval", checkpoint_dir, n_its, args.dataset
+                )
             if test_loss_dict is None:
                 test_loss_dict = visual_loss_dict
             else:
@@ -401,6 +437,29 @@ def main():
         )
     elif args.dataset == "hm3d":
         hm3d_json_gzs = "data/datasets/pointnav_hm3d_gibson/pointnav_spot_0.3/{split}/{split}.json.gz"
+        data_train = HabitatImageGenerator(
+            render_gpus,
+            args.dataset,
+            args.data_subset,
+            hm3d_json_gzs,
+            images_before_reset=1000,
+            sensors=sensors,
+            transform=train_transforms,
+            depth_transform=train_transforms_depth,
+            semantic_transform=train_transforms_semantic,
+        )
+        print("Num train images", len(data_train))
+
+        data_test = HabitatImageGenerator(
+            render_gpus,
+            args.dataset,
+            "val",
+            hm3d_json_gzs,
+            images_before_reset=1000,
+            sensors=sensors,
+        )
+    elif args.dataset == "ferst":
+        hm3d_json_gzs = "data/datasets/ferst/{split}/{split}.json.gz"
         data_train = HabitatImageGenerator(
             render_gpus,
             args.dataset,

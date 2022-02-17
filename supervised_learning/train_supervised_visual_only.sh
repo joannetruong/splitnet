@@ -4,7 +4,7 @@
 # This source code is licensed under the Creative Commons license found in the
 # LICENSE file in the root directory of this source tree.
 
-DATASET="gibson"
+DATASET="hm3d"
 
 export GLOG_minloglevel=2
 export OMP_NUM_THREADS=4
