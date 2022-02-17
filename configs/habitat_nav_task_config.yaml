@@ -25,6 +25,8 @@ SIMULATOR:
     TYPE: HabitatSimRGBSensor
   DEPTH_SENSOR:
     HFOV: 45
+    HEIGHT: 256
+    WIDTH: 256
     MIN_DEPTH: 0.3
     MAX_DEPTH: 10.0
     NORMALIZE_DEPTH: True

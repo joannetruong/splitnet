@@ -16,8 +16,8 @@ import numpy as np
 from habitat.config.default import get_config
 from habitat.datasets import make_dataset
 
-USE_SPOT = True
-USE_GRAY = True
+USE_SPOT = False
+USE_GRAY = False
 if USE_SPOT:
     if USE_GRAY:
         CFG = "/coc/testnvme/jtruong33/google_nav/habitat-lab/configs/tasks/outdoor_spotnav_hm3d.yaml"
@@ -183,6 +183,8 @@ class RandomImageGenerator(object):
         else:
             img = obs["rgb"][:, :, :3]
             depth = obs["depth"].squeeze()
+            print("IMG SHAPE: ", img.shape)
+            print("depth SHAPE: ", depth.shape)
 
         self.num_samples += 1
         return {"rgb": img, "depth": depth, "class_semantic": class_semantic}

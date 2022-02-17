@@ -24,8 +24,8 @@ from networks.networks import ShallowVisualEncoder
 from torch.multiprocessing import set_start_method
 from torchvision import transforms
 
-USE_SPOT = True
-USE_GRAY = True
+USE_SPOT = False
+USE_GRAY = False
 
 args = get_args()
 
@@ -45,7 +45,7 @@ USE_SEMANTIC = False
 # TEST_BATCH_SIZE = 4
 
 
-def draw_outputs(output, labels, mode, checkpoint_dir, count, dataset):
+def draw_outputs_spot(output, labels, mode, checkpoint_dir, count, dataset):
     print("!!!!!!!!!!!!!!!! DRAW OUTPUTS !!!!!!!!!!!!!!!!")
 
     output[:, 2:] = output[:, 2:] / output[:, 2:].norm(dim=1, keepdim=True)
@@ -135,6 +135,67 @@ def draw_outputs(output, labels, mode, checkpoint_dir, count, dataset):
         all_pth = os.path.join(save_dir, "all_" + mode + "_" + str(count) + ".png")
 
         cv2.imwrite(all_pth, all)
+
+
+def draw_outputs(output, labels, mode, checkpoint_dir, count, dataset):
+    output[:, 4:7] = output[:, 4:7] / output[:, 4:7].norm(dim=1, keepdim=True)
+    output = pt_util.to_numpy(output)
+    labels = {key: pt_util.to_numpy(val) for key, val in labels.items()}
+    if USE_SEMANTIC:
+        labels["semantic"][:, 0, 1] = 0
+        labels["semantic"][:, 0, 0] = 40
+    for bb in range(output.shape[0]):
+        output_on = output[bb]
+        labels_on = {key: val[bb] for key, val in labels.items()}
+        output_semantic = None
+        if USE_SEMANTIC:
+            output_semantic = np.argmax(output_on[7:], axis=0)
+            output_semantic[0, 0] = 40
+            output_semantic[0, 1] = 0
+        images = [
+            labels_on["rgb"].transpose(1, 2, 0),
+            255 - np.clip((labels_on["depth"] + 0.5).squeeze() * 255, 0, 255),
+            (np.clip(labels_on["surface_normals"] + 1, 0, 2) * 127)
+            .astype(np.uint8)
+            .transpose(1, 2, 0),
+            labels_on["semantic"].squeeze().astype(np.uint8) if USE_SEMANTIC else None,
+            np.clip((output_on[:3] + 0.5) * 255, 0, 255)
+            .astype(np.uint8)
+            .transpose(1, 2, 0),
+            255 - np.clip((output_on[3] + 0.5).squeeze() * 255, 0, 255),
+            (np.clip(output_on[4:7] + 1, 0, 2) * 127)
+            .astype(np.uint8)
+            .transpose(1, 2, 0),
+            output_semantic.astype(np.uint8) if USE_SEMANTIC else None,
+        ]
+        titles = [
+            "rgb",
+            "depth",
+            "normals",
+            "semantic",
+            "rgb_pred",
+            "depth_pred",
+            "normals_pred",
+            "semantic_pred",
+        ]
+
+        image = drawing.subplot(
+            images,
+            2,
+            4,
+            256,
+            256,
+            titles=titles,
+            normalize=[False, False, False, True, False, False, False, True],
+        )
+        # cv2.imshow("im_" + mode, image[:, :, ::-1])
+        # cv2.waitKey(0)
+
+        save_dir = os.path.join(checkpoint_dir, "debug_imgs_gray_train_" + dataset)
+        os.makedirs(save_dir, exist_ok=True)
+        all_pth = os.path.join(save_dir, "all_" + mode + "_" + str(count) + ".png")
+
+        cv2.imwrite(all_pth, image[:, :, ::-1])
 
 
 def train_model(
