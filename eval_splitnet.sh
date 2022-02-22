@@ -23,12 +23,13 @@ python eval_splitnet.py \
     --dataset ${DATASET} \
     --task ${TASK} \
     --encoder-network-type ShallowVisualEncoder \
-    --num-processes 4 \
+    --num-processes 1 \
     --data-subset val \
     --no-save-checkpoints \
     --no-weight-update \
     --no-tensorboard \
     --pytorch-gpu-ids 0 \
     --render-gpu-ids 0 \
+    --record-video \
     --checkpoint-dirname ${CHECKPOINT_DIRNAME} \
 

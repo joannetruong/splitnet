@@ -3,8 +3,10 @@ TASK:
   SENSORS: ['POINTGOAL_SENSOR',
             'HEADING_SENSOR',
   ]
-  MEASUREMENTS: ['SPL',
-                 'TOP_DOWN_MAP',
+  MEASUREMENTS: ['TOP_DOWN_MAP',
+                 'DISTANCE_TO_GOAL',
+                 'SUCCESS',
+                 'SPL',
   ]
 SIMULATOR:
   SCENE: data/scene_datasets/mp3d/17DRP5sb8fy/17DRP5sb8fy.glb
@@ -25,8 +27,8 @@ SIMULATOR:
     TYPE: HabitatSimRGBSensor
   DEPTH_SENSOR:
     HFOV: 45
-    MIN_DEPTH: 0
-    MAX_DEPTH: 10
+    MIN_DEPTH: 0.0
+    MAX_DEPTH: 10.0
     NORMALIZE_DEPTH: True
     TYPE: HabitatSimDepthSensor
   SEMANTIC_SENSOR:

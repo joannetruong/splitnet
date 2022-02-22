@@ -12,8 +12,6 @@ import habitat
 import numpy as np
 from dg_util.python_utils import pytorch_util as pt_util
 from habitat.core.simulator import Observations
-from habitat import SimulatorActions
-
 from utils import one_hot_shortest_path_follower
 
 
@@ -51,7 +49,7 @@ class MultiDatasetEnv(habitat.RLEnv, ABC):
 
 class FormattedRLEnv(MultiDatasetEnv, ABC):
     def __init__(self, config, datasets):
-        self._previous_action = SimulatorActions.STOP
+        self._previous_action = "stop"
         self._slack_reward = config.TASK.SLACK_REWARD
         self._collision_reward = config.TASK.COLLISION_REWARD
         self._step_size = config.SIMULATOR.FORWARD_STEP_SIZE
@@ -82,7 +80,7 @@ class FormattedRLEnv(MultiDatasetEnv, ABC):
             print("ind", self.habitat_env._current_episode_index)
         self._total_episode_count += 1
 
-        self._previous_action = SimulatorActions.STOP
+        self._previous_action = "stop"
         observations = super(FormattedRLEnv, self).reset()
         self._previous_pose = (
             self.habitat_env.sim.get_agent_state().position,
@@ -114,7 +112,7 @@ class FormattedRLEnv(MultiDatasetEnv, ABC):
             self.habitat_env.sim.get_agent_state().rotation,
         )
 
-        if self._previous_action == SimulatorActions.MOVE_FORWARD:
+        if self._previous_action == "move_forward":
             if (
                 np.linalg.norm(self._current_pose[0] - self._previous_pose[0])
                 < self._step_size * 0.25
@@ -134,9 +132,7 @@ class FormattedRLEnv(MultiDatasetEnv, ABC):
             obs["depth"] = depth
         # Action you took to get this image.
         obs["prev_action"] = self._previous_action
-        obs["prev_action_one_hot"] = pt_util.get_one_hot_numpy(
-            self._previous_action, len(SimulatorActions)
-        )
+        obs["prev_action_one_hot"] = pt_util.get_one_hot_numpy(self._previous_action, 4)
         return obs
 
     def get_info(self, observations):
@@ -183,7 +179,7 @@ class PointnavRLEnv(FormattedRLEnv):
     def step(self, action):
         if not self._enable_stop_action:
             if self._distance_target() < self._success_distance:
-                action = SimulatorActions.STOP
+                action = "stop"
 
         obs, reward, done, info = super(PointnavRLEnv, self).step(action)
         return obs, reward, done, info
@@ -222,7 +218,7 @@ class PointnavRLEnv(FormattedRLEnv):
         return self._stop_called() and self._distance_target() < self._success_distance
 
     def _stop_called(self):
-        return self._previous_action == SimulatorActions.STOP
+        return self._previous_action == "stop"
 
     def get_done(self, observations):
         done = self.habitat_env.episode_over or self._stop_called()

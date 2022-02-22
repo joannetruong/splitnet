@@ -10,12 +10,12 @@ from typing import Tuple
 
 import gym
 import habitat
+import habitat_sim
 import numpy as np
 import torch
 from arguments import get_args
 from dg_util.python_utils import misc_util
 from dg_util.python_utils import pytorch_util as pt_util
-from habitat import SimulatorActions
 from networks import networks, optimizers
 from networks.networks import VisualPolicy
 from reinforcement_learning.get_config import get_dataset_config
@@ -28,18 +28,20 @@ from reinforcement_learning.nav_rl_env import (
 from utils.env_util import HabitatVecEnvWrapper, VecPyTorch
 
 ACTION_SPACE = [
-    SimulatorActions.MOVE_FORWARD,
-    SimulatorActions.TURN_LEFT,
-    SimulatorActions.TURN_RIGHT,
+    "move_forward",
+    "move_left",
+    "move_right",
+    # TURN_LEFT,
+    # TURN_RIGHT,
 ]
 HABITAT_ACTION_TO_ACTION_SPACE = {val: ii for ii, val in enumerate(ACTION_SPACE)}
-ACTION_SPACE = np.array(ACTION_SPACE, dtype=np.int64)
+ACTION_SPACE = np.array(ACTION_SPACE)
 
 SIM_ACTION_TO_NAME = {
-    SimulatorActions.MOVE_FORWARD: "Forward",
-    SimulatorActions.TURN_LEFT: "Rotate Left",
-    SimulatorActions.TURN_RIGHT: "Rotate Right",
-    SimulatorActions.STOP: "Stop",
+    "move_forward": "Forward",
+    "move_left": "Rotate Left",
+    "move_right": "Rotate Right",
+    "stop": "Stop",
 }
 
 

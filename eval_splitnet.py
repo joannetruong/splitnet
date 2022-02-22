@@ -16,11 +16,11 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import tqdm
-from base_habitat_rl_runner import ACTION_SPACE, SIM_ACTION_TO_NAME, BaseHabitatRLRunner
+from base_habitat_rl_runner import (ACTION_SPACE, SIM_ACTION_TO_NAME,
+                                    BaseHabitatRLRunner)
 from dg_util.python_utils import drawing
 from dg_util.python_utils import pytorch_util as pt_util
 from dg_util.python_utils import tensorboard_logger
-from habitat import SimulatorActions
 from habitat.datasets import make_dataset
 from habitat.utils.visualizations import maps
 from habitat.utils.visualizations.utils import images_to_video
@@ -91,10 +91,10 @@ class HabitatRLEvalRunner(BaseHabitatRLRunner):
             self.eval_logger.count = iteration
 
     def evaluate_model(self):
-        self.envs.unwrapped.call(
-            ["switch_dataset"] * self.shell_args.num_processes,
-            [("val",)] * self.shell_args.num_processes,
-        )
+        # self.envs.unwrapped.call(
+        #     ["switch_dataset"] * self.shell_args.num_processes,
+        #     [("val",)] * self.shell_args.num_processes,
+        # )
 
         if not os.path.exists(self.eval_dir):
             os.makedirs(self.eval_dir)
@@ -293,9 +293,7 @@ class HabitatRLEvalRunner(BaseHabitatRLRunner):
                         ).copy()
                     else:
                         draw_obs["action_taken"] = None
-                        draw_obs["action_taken_name"] = SIM_ACTION_TO_NAME[
-                            SimulatorActions.STOP
-                        ]
+                        draw_obs["action_taken_name"] = SIM_ACTION_TO_NAME["stop"]
                         draw_obs["action_prob"] = None
                     prev_action = action_cpu
                     prev_action_probs = self.agent.last_dist.probs.detach()
