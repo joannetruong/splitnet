@@ -14,7 +14,7 @@ export MKL_NUM_THREADS=4
 export VECLIB_MAXIMUM_THREADS=4
 export NUMEXPR_NUM_THREADS=4
 
-
+CHECKPOINT_DIRNAME="/coc/testnvme/jtruong33/google_nav/splitnet/pretrained_weights/pointnav/gibson/splitnet_pretrain_supervised_rl/checkpoints/best_weights"
 
 LOG_LOCATION="output_files/"${TASK}"/"${DATASET}"/splitnet_pretrain_supervised_rl"
 
@@ -30,4 +30,5 @@ python eval_splitnet.py \
     --no-tensorboard \
     --pytorch-gpu-ids 0 \
     --render-gpu-ids 0 \
+    --checkpoint-dirname ${CHECKPOINT_DIRNAME} \
 
